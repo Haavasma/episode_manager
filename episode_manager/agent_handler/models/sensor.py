@@ -21,11 +21,12 @@ class LidarData:
         Convert to bird eye view
         """
         self.bev = self._to_bev()
+        print("BEV SHAPE: ", self.bev.shape)
 
     def _to_bev(self) -> np.ndarray:
         # TODO: find ways to optimize this
         if len(self.points) <= 0:
-            return np.zeros((1, 2, 256, 256))
+            return np.zeros((1, 3, 256, 256))
 
         data: List[List[float]] = []
 
@@ -90,4 +91,5 @@ class CameraManagerData:
     images: List[np.ndarray]
     # contains the lidar data from each applied sensor from a given frame
     lidar_scans: LidarData
+    third_person_view: np.ndarray
     # radar: List[np.ndarray]

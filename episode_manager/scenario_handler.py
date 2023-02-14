@@ -73,11 +73,13 @@ class ScenarioHandler:
         scenarios_file: pathlib.Path,
         route_id: str,
     ):
+
+        timeout = 30
         args: Namespace = Namespace(
             route=[route_file, scenarios_file, route_id],
             sync=True,
             port=self.port,
-            timeout="10.0",
+            timeout=f"{timeout}",
             host=self.host,
             agent=None,
             debug=True,
@@ -107,13 +109,14 @@ class ScenarioHandler:
         self.runner_thread = threading.Thread(target=self.scenario_runner.run)
         self.runner_thread.start()
 
-        timeout = 5 * 1e9  # Timeout of 60 seconds
         start = time.time()
 
         print("WAITING FOR SCENARIO TO START")
-
+        global tick_queue
         while not scenario_started:
             if (start + timeout) < time.time():
+                # Stop runner_thread with kill signal
+                tick_queue = -1
                 raise TimeoutError("Waiting for scenario to set up timed out")
 
             if not self.runner_thread.is_alive():

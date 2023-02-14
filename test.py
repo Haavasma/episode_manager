@@ -1,6 +1,9 @@
-import pathlib
 import time
-from episode_manager.agent_handler.models.configs import LidarConfiguration
+from episode_manager.agent_handler.models.configs import (
+    LidarConfiguration,
+    RGBCameraConfiguration,
+)
+from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import TrainingType
 
 from episode_manager.episode_manager import (
@@ -12,18 +15,17 @@ from episode_manager.episode_manager import (
 
 
 def main():
+    config = EpisodeManagerConfiguration()
 
-    config = EpisodeManagerConfiguration(
-        "localhost",
-        2000,
-        TrainingType.TRAINING,
-        CarConfiguration("temp", [], LidarConfiguration(enabled=False), 10),
-    )
+    config.car_config.carla_fps = 10
+
+    config.render_server = False
 
     manager = EpisodeManager(config, None, None)
 
     manager.start_episode()
     for _ in range(20):
+        print("RUNNING STEP")
         state = manager.step(Action(3.0, 0.0, False, 0.0))
         if state.running is False:
             break

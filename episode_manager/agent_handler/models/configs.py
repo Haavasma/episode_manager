@@ -45,10 +45,9 @@ class CarConfiguration:
     model: str
     cameras: List[RGBCameraConfiguration]
     lidar: LidarConfiguration
-    carla_fps: int
+    carla_fps = 10
 
     def __post_init__(self):
-        self.carla_framerate = 1 / self.carla_fps
         self.carla_configuration = self.to_carla_leader_board_sensor_configuration()
 
     def get_carla_configuration(self):
@@ -99,7 +98,7 @@ class CarConfiguration:
                     "roll": 0.0,
                     "pitch": 0.0,
                     "yaw": 0.0,
-                    "sensor_tick": self.carla_framerate,
+                    "sensor_tick": 1 / self.carla_fps,
                     "id": "imu",
                 },
                 {
@@ -110,7 +109,7 @@ class CarConfiguration:
                     "roll": 0.0,
                     "pitch": 0.0,
                     "yaw": 0.0,
-                    "sensor_tick": 0.01,
+                    "sensor_tick": 1 / self.carla_fps,
                     "id": "gps",
                 },
                 {

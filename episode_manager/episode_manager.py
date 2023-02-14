@@ -16,6 +16,11 @@ from episode_manager.agent_handler import (
     CarConfiguration,
     VehicleState,
 )
+from episode_manager.agent_handler.models.configs import (
+    LidarConfiguration,
+    RGBCameraConfiguration,
+)
+from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import TRAINING_TYPE_TO_ROUTES, TrainingType
 
 from episode_manager.scenario_handler import ScenarioHandler, ScenarioState
@@ -23,10 +28,24 @@ from episode_manager.scenario_handler import ScenarioHandler, ScenarioState
 
 @dataclass
 class EpisodeManagerConfiguration:
-    host: str
-    port: int
-    training_type: TrainingType
-    car_config: CarConfiguration
+    host: str = "127.0.0.1"
+    port: int = 2000
+    render_server: bool = True
+    render_client: bool = True
+    training_type: TrainingType = TrainingType.TRAINING
+    car_config: CarConfiguration = CarConfiguration(
+        "tesla",
+        [
+            RGBCameraConfiguration(
+                400,
+                400,
+                103,
+                10,
+                Transform(Location(0, 0, 0), Rotation(0, 0, 0)),
+            )
+        ],
+        LidarConfiguration(enabled=True),
+    )
     route_directory: pathlib.Path = pathlib.Path(
         os.path.join(os.path.dirname(__file__), "routes")
     )
@@ -88,26 +107,25 @@ class EpisodeManager:
         """
         Starts a new route in the simulator based on the provided configurations
         """
-        files = self.routes[Random().randint(0, len(self.routes))]
+        files = self.routes[Random().randint(0, len(self.routes) - 1)]
         tree = ET.parse(files.route)
 
         # pick random id from route
         ids: List[str] = []
         for route in tree.iter("route"):
             ids.append(route.attrib["id"])
-        id = ids[Random().randint(0, len(ids))]
+        id = ids[Random().randint(0, len(ids) - 1)]
 
         print("Starting episode with route: " + str(files.route))
-
-        # TODO: Pick a random scenario from the episodes, instead of hard-coding it to 0
         self.scenario_handler.start_episode(
             files.route,
             files.scenario,
             id,
         )
 
-        print("STARTED SCENARIO")
         self.agent_handler.restart()
+        self.agent_handler.apply_control(Action(0, 0, False, 0))
+        self.scenario_handler.tick()
 
         return
 
@@ -132,7 +150,17 @@ def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
     client = carla.Client(config.host, config.port)
     client.set_timeout(20.0)
     sim_world = client.get_world()
-    agent_handler = AgentHandler(sim_world, config.car_config)
+
+    # Disable rendering if configured
+    settings = sim_world.get_settings()
+    if not config.render_server:
+        settings.no_rendering_mode = True
+
+    sim_world.apply_settings(settings)
+
+    agent_handler = AgentHandler(
+        sim_world, config.car_config, render=config.render_client
+    )
     return agent_handler
 
 
