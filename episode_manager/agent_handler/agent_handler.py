@@ -160,8 +160,6 @@ class AgentHandler:
 
             sensor_data = self.camera_manager.get_sensor_data()
 
-            print(f"image shape: {sensor_data.images[0].shape}")
-
             render_sensor_data(sensor_data)
 
             return VehicleState(sensor_data, speed, gps, compass, True)

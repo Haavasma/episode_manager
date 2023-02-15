@@ -30,8 +30,6 @@ def from_carla_lidar(data: carla.LidarMeasurement) -> LidarData:
             )
         )
 
-    print("POINTS: ", len(points))
-
     return LidarData(points)
 
 
@@ -60,8 +58,6 @@ class CameraManager:
                 camera_configs[index].height, camera_configs[index].width, 4
             )
 
-            print("IMAGE SHAPE BEFORE RESHAPE: ", image.shape)
-
             self.image_data[index] = image
 
         bp_library = world.get_blueprint_library()
@@ -83,7 +79,6 @@ class CameraManager:
         self.lidar_data: LidarData = LidarData([])
 
         def set_lidar_data(data):
-            print("SETTING LIDAR DATA")
             self.lidar_data = from_carla_lidar(data)
 
         if lidar_config is not None:

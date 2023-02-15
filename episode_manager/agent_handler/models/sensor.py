@@ -21,7 +21,6 @@ class LidarData:
         Convert to bird eye view
         """
         self.bev = self._to_bev()
-        print("BEV SHAPE: ", self.bev.shape)
 
     def _to_bev(self) -> np.ndarray:
         # TODO: find ways to optimize this

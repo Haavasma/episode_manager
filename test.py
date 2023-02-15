@@ -25,7 +25,6 @@ def main():
 
     manager.start_episode()
     for _ in range(20):
-        print("RUNNING STEP")
         state = manager.step(Action(3.0, 0.0, False, 0.0))
         if state.running is False:
             break
