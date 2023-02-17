@@ -13,6 +13,7 @@ setup(
             "routes/training_routes/*.xml",
             "routes/validation_routes/*.xml",
             "routes/evaluation_routes/*.xml",
+            "routes/scenarios/*.json",
         ]
     },
     install_requires=[
