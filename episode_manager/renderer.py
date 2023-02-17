@@ -6,6 +6,10 @@ from episode_manager.models.world_state import WorldState
 
 
 class WorldStateRenderer:
+    """
+    Class for rendering the WorldState to a pygame surface
+    """
+
     def __init__(self):
         pygame.init()
         pygame.font.init()
@@ -45,6 +49,9 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
     """
     Generates a pygame surface frame from the WorldState sensor data
     """
+    # TODO: add fields for information about current speed,
+    # distance to next wayptoint, etc.
+
     third_person_view = state.ego_vehicle_state.sensor_data.third_person_view
     surface = pygame.surfarray.make_surface(np.zeros((1280, 720, 3)))
 
@@ -73,11 +80,8 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
         height = concat_image.shape[1]
         camera_surface = pygame.surfarray.make_surface(concat_image)
 
-    print("WIDTH AFTER CAMERA", width)
-    print("HEIGHT AFTER CAMERA", height)
-
-    if state.ego_vehicle_state.sensor_data.lidar_scans is not None:
-        lidar_bev = state.ego_vehicle_state.sensor_data.lidar_scans.bev
+    if state.ego_vehicle_state.sensor_data.lidar_data is not None:
+        lidar_bev = state.ego_vehicle_state.sensor_data.lidar_data.bev
         if lidar_bev is not None and lidar_bev.shape[0] > 0:
             array = lidar_bev[0].T
             lidar_surface = pygame.surfarray.make_surface(array.swapaxes(0, 1) * 255)
@@ -87,9 +91,6 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
             lidar_pos = (width, 0)
             width += array.shape[1]
 
-    print("WIDTH AFTER LIDAR", width)
-    print("HEIGHT AFTER LIDAR", height)
-
     if third_person_view is not None and third_person_view.shape[0] > 0:
         array = third_person_view[:, :, :3]
         array = array[:, :, ::-1]
@@ -98,10 +99,7 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
         third_person_pos = (0, height)
         width = max(width, array.shape[1])
         height += array.shape[0]
-        print(f"THIRD PERSON SHAPE: {array.shape}")
 
-    print("WIDTH", width)
-    print("HEIGHT", height)
     surface = pygame.Surface((width, height))
 
     if camera_surface is not None:

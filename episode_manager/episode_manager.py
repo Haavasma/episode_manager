@@ -127,16 +127,10 @@ class EpisodeManager:
         id = ids[Random().randint(0, len(ids) - 1)]
 
         print("Starting episode with route: " + str(files.route))
-        # self.scenario_handler.start_episode(
-        #     files.route,
-        #     files.scenario,
-        #     id,
-        # )
-
         self.scenario_handler.start_episode(
-            "/lhome/haavasma/Documents/fordypningsoppgave/repositories/episode_manager/episode_manager/routes/training_routes/routes_town05_tiny.xml",
-            "/lhome/haavasma/Documents/fordypningsoppgave/repositories/episode_manager/episode_manager/routes/scenarios/town05_all_scenarios.json",
-            "214",
+            files.route,
+            files.scenario,
+            id,
         )
 
         self.agent_handler.restart()

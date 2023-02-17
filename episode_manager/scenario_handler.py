@@ -86,11 +86,11 @@ class ScenarioHandler:
             openscenario=None,
             repetitions=1,
             reloadWorld=True,
-            trafficManagerPort=8000,
+            trafficManagerPort=self.port + 1000,
             trafficManagerSeed="0",
             waitForEgo=False,
             record="",
-            outputDir=f"../output/{int(time.time())}",
+            outputDir=f"./output/{int(time.time())}",
             junit=True,
             json=True,
             file=True,
@@ -147,7 +147,7 @@ class ScenarioHandler:
         tick_queue += 1
 
         # TODO: read information from carla server and find the privileged state information
-        # (distance to traffic light, vehicle, pedestrian, and route)
+        # (distance to traffic light, vehicle, pedestrian, and route, ego vehicle exact position)
 
         return ScenarioState(
             PrivilegedScenarioData(0, 0, 0, 0),
@@ -163,7 +163,6 @@ class ScenarioHandler:
 class ScenarioManagerControlled(ScenarioManager):
     @override
     def run_scenario(self):
-        print("RUNNING OVERRIDEN RUN_SCENARIO")
         print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name))
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
