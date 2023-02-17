@@ -17,8 +17,8 @@ class RGBCameraConfiguration:
 class LidarConfiguration:
     enabled: bool = True
     channels: int = 32
-    range: float = 50
-    transform: Transform = Transform(Location(0, 0, 2), Rotation(0, 0, 0))
+    range: float = 5000
+    transform: Transform = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 
 # TODO: Agent class that is used to act based on the observations,

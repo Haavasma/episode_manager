@@ -57,15 +57,15 @@ class ScenarioState:
     unprivileged: UnprivilegedScenarioData
 
 
+@dataclass
 class ScenarioHandler:
     """
     Should interact with Scenario runner to set up the given route, as well as tick the scenario whenever ordered to.
     """
 
-    def __init__(self, host: str, port: int):
-        self.host = host
-        self.port = port
-        return
+    host: str
+    port: int
+    carla_fps: int = 10
 
     def start_episode(
         self,
@@ -86,11 +86,11 @@ class ScenarioHandler:
             openscenario=None,
             repetitions=1,
             reloadWorld=True,
-            trafficManagerPort=8000,
+            trafficManagerPort=self.port + 1000,
             trafficManagerSeed="0",
             waitForEgo=False,
             record="",
-            outputDir=f"../output/{int(time.time())}",
+            outputDir=f"./output/{int(time.time())}",
             junit=True,
             json=True,
             file=True,
@@ -102,6 +102,9 @@ class ScenarioHandler:
             pathlib.Path(args.outputDir).mkdir(parents=True)
 
         self.scenario_runner = ScenarioRunner(args)
+
+        self.scenario_runner.frame_rate = self.carla_fps
+
         self.scenario_runner.manager = ScenarioManagerControlled(
             args.debug, args.sync, args.timeout
         )
@@ -144,7 +147,7 @@ class ScenarioHandler:
         tick_queue += 1
 
         # TODO: read information from carla server and find the privileged state information
-        # (distance to traffic light, vehicle, pedestrian, and route)
+        # (distance to traffic light, vehicle, pedestrian, and route, ego vehicle exact position)
 
         return ScenarioState(
             PrivilegedScenarioData(0, 0, 0, 0),
@@ -160,7 +163,6 @@ class ScenarioHandler:
 class ScenarioManagerControlled(ScenarioManager):
     @override
     def run_scenario(self):
-        print("RUNNING OVERRIDEN RUN_SCENARIO")
         print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name))
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
