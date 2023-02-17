@@ -9,7 +9,7 @@ class Location:
     z: float
 
     def get_carla_location(self):
-        return carla.Location(self.x, self.y, self.z)
+        return carla.Location(x=self.x, y=self.y, z=self.z)
 
 
 @dataclass
@@ -19,7 +19,7 @@ class Rotation:
     roll: float
 
     def get_carla_rotation(self):
-        return carla.Rotation(self.pitch, self.yaw, self.roll)
+        return carla.Rotation(pitch=self.pitch, yaw=self.yaw, roll=self.roll)
 
 
 @dataclass

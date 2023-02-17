@@ -57,15 +57,15 @@ class ScenarioState:
     unprivileged: UnprivilegedScenarioData
 
 
+@dataclass
 class ScenarioHandler:
     """
     Should interact with Scenario runner to set up the given route, as well as tick the scenario whenever ordered to.
     """
 
-    def __init__(self, host: str, port: int):
-        self.host = host
-        self.port = port
-        return
+    host: str
+    port: int
+    carla_fps: int = 10
 
     def start_episode(
         self,
@@ -102,6 +102,9 @@ class ScenarioHandler:
             pathlib.Path(args.outputDir).mkdir(parents=True)
 
         self.scenario_runner = ScenarioRunner(args)
+
+        self.scenario_runner.frame_rate = self.carla_fps
+
         self.scenario_runner.manager = ScenarioManagerControlled(
             args.debug, args.sync, args.timeout
         )

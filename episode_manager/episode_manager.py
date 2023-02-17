@@ -8,13 +8,10 @@ import os
 
 from random import Random
 
-from scenario_runner import RouteParser
-from srunner.scenarios.route_scenario import ET
 from episode_manager.agent_handler import (
     Action,
     AgentHandler,
     CarConfiguration,
-    VehicleState,
 )
 from episode_manager.agent_handler.models.configs import (
     LidarConfiguration,
@@ -22,16 +19,18 @@ from episode_manager.agent_handler.models.configs import (
 )
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import TRAINING_TYPE_TO_ROUTES, TrainingType
+from episode_manager.models.world_state import WorldState
+from episode_manager.renderer import WorldStateRenderer
 
-from episode_manager.scenario_handler import ScenarioHandler, ScenarioState
+from episode_manager.scenario_handler import ScenarioHandler
 
 
 @dataclass
 class EpisodeManagerConfiguration:
     host: str = "127.0.0.1"
     port: int = 2000
-    render_server: bool = True
-    render_client: bool = True
+    render_server: bool = False
+    render_client: bool = False
     training_type: TrainingType = TrainingType.TRAINING
     car_config: CarConfiguration = CarConfiguration(
         "tesla",
@@ -39,10 +38,24 @@ class EpisodeManagerConfiguration:
             RGBCameraConfiguration(
                 400,
                 400,
-                103,
-                10,
-                Transform(Location(0, 0, 0), Rotation(0, 0, 0)),
-            )
+                120,
+                0.1,
+                Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
+            ),
+            RGBCameraConfiguration(
+                400,
+                400,
+                120,
+                0.1,
+                Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
+            ),
+            RGBCameraConfiguration(
+                400,
+                400,
+                120,
+                0.1,
+                Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
+            ),
         ],
         LidarConfiguration(enabled=True),
     )
@@ -57,24 +70,21 @@ class EpisodeFiles:
     scenario: pathlib.Path
 
 
-@dataclass
-class WorldState:
-    ego_vehicle_state: VehicleState
-    scenario_state: ScenarioState
-    running: bool
-
-
 class EpisodeManager:
     def __init__(
         self,
         config: EpisodeManagerConfiguration,
-        agent_handler: AgentHandler,
-        scenario_handler: ScenarioHandler,
+        agent_handler: AgentHandler = None,
+        scenario_handler: ScenarioHandler = None,
     ):
 
         self.config = config
         self.scenario_handler = scenario_handler
         self.agent_handler = agent_handler
+        self.world_renderer = None
+
+        if config.render_client:
+            self.world_renderer = WorldStateRenderer()
 
         if agent_handler is None:
             self.agent_handler = setup_agent_handler(config)
@@ -117,10 +127,16 @@ class EpisodeManager:
         id = ids[Random().randint(0, len(ids) - 1)]
 
         print("Starting episode with route: " + str(files.route))
+        # self.scenario_handler.start_episode(
+        #     files.route,
+        #     files.scenario,
+        #     id,
+        # )
+
         self.scenario_handler.start_episode(
-            files.route,
-            files.scenario,
-            id,
+            "/lhome/haavasma/Documents/fordypningsoppgave/repositories/episode_manager/episode_manager/routes/training_routes/routes_town05_tiny.xml",
+            "/lhome/haavasma/Documents/fordypningsoppgave/repositories/episode_manager/episode_manager/routes/scenarios/town05_all_scenarios.json",
+            "214",
         )
 
         self.agent_handler.restart()
@@ -135,11 +151,19 @@ class EpisodeManager:
         performing the chosen action on the route environment
         """
         self.agent_handler.apply_control(ego_vehicle_action)
-
         scenario_state = self.scenario_handler.tick()
+
         agent_state = self.agent_handler.read_world_state()
 
-        return WorldState(agent_state, scenario_state, True)
+        world_state = WorldState(
+            agent_state, scenario_state, self.scenario_handler.is_running()
+        )
+
+        # Render the world state with world_renderer
+        if self.world_renderer:
+            self.world_renderer.render(world_state)
+
+        return world_state
 
     def stop_episode(self):
         self.agent_handler.stop()
@@ -155,15 +179,18 @@ def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
     settings = sim_world.get_settings()
     if not config.render_server:
         settings.no_rendering_mode = True
+    settings.fixed_delta_seconds = 1 / config.car_config.carla_fps
 
     sim_world.apply_settings(settings)
 
     agent_handler = AgentHandler(
-        sim_world, config.car_config, render=config.render_client
+        sim_world, config.car_config, enable_third_person_view=config.render_client
     )
     return agent_handler
 
 
 def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandler:
-    scenario_handler = ScenarioHandler(config.host, config.port)
+    scenario_handler = ScenarioHandler(
+        config.host, config.port, carla_fps=config.car_config.carla_fps
+    )
     return scenario_handler

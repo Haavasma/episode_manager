@@ -3,7 +3,6 @@ from typing_extensions import override
 import time
 import carla
 import sys
-import matplotlib.pyplot as plt
 import numpy as np
 import pygame
 from manual_control import (
@@ -69,17 +68,12 @@ class AgentHandler:
         self,
         carla_world: carla.World,
         car_configuration: CarConfiguration,
-        render=False,
+        enable_third_person_view: bool = False,
     ):
-        self.render_enabled = render
-        self.config = car_configuration
-
-        if render:
-            pygame.init()
-            pygame.font.init()
-            display = pygame.display.set_mode((1280, 720))
-
         self.world = carla_world
+        self.config = car_configuration
+        self.enable_third_person_view = enable_third_person_view
+
         try:
             self.map = self.world.get_map()
         except RuntimeError as error:
@@ -130,7 +124,10 @@ class AgentHandler:
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
         self.camera_manager = CameraManager(
-            self.player, self.config.cameras, self.config.lidar
+            self.player,
+            self.config.cameras,
+            self.config.lidar,
+            enable_third_person_view=self.enable_third_person_view,
         )
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
@@ -160,8 +157,6 @@ class AgentHandler:
 
             sensor_data = self.camera_manager.get_sensor_data()
 
-            render_sensor_data(sensor_data)
-
             return VehicleState(sensor_data, speed, gps, compass, True)
 
         raise Exception("Sensors not initialized")
@@ -187,38 +182,6 @@ class AgentHandler:
                 print(f"Stopping sensor {index}")
                 sensor.sensor.stop()
                 sensor.sensor.destroy()
-
-
-def render_sensor_data(sensor_data: CameraManagerData):
-    """
-    uses numpy to render camera outputs and lidar data
-    """
-
-    # TODO: REPLACE WITH PYGAME TO RENDER SENSOR DATA AND
-    # INFORMATION ABOUT THE VEHICLE
-
-    # # Create plt figure with n columns
-    # n = len(sensor_data.images) + 1
-    # fig, axs = plt.subplots(1, n, figsize=(n * 5, 5))
-    #
-    # # render images and lidar
-    #
-    # for index, image in enumerate(sensor_data.images):
-    #     axs[index].set_title(f"rgb_{index}")
-    #     if image.shape[0] > 0:
-    #         axs[index].imshow(image)
-    #
-    # lidar_bev = sensor_data.lidar_scans.bev[0]
-    # new_lidar = np.zeros((256, 256, 3))
-    # new_lidar[:, :, 0] = lidar_bev[0, :, :]
-    # new_lidar[:, :, 1] = lidar_bev[1, :, :]
-    # new_lidar[:, :, 2] = lidar_bev[2, :, :]
-    # # axs[-1].set_title("lidar")
-    # axs[-1].imshow(new_lidar)
-    #
-    # fig.show()
-    # plt.show()
-    return
 
 
 def get_forward_speed(player):
