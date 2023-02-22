@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Dict, List
 import pygame
 import numpy as np
 
@@ -52,6 +52,33 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
     # TODO: add fields for information about current speed,
     # distance to next wayptoint, etc.
 
+    surface = create_sensor_data_surface(state)
+
+    surface = display_text(
+        surface,
+        {
+            "Vehicle Speed": str(state.ego_vehicle_state.speed),
+            "Distance to traffic light": str(
+                state.ego_vehicle_state.privileged.dist_to_traffic_light
+            ),
+            "distance to vehicle": str(
+                state.ego_vehicle_state.privileged.dist_to_vehicle
+            ),
+            "distance to route": str(state.ego_vehicle_state.privileged.dist_to_route),
+            "distance to pedestrian": str(
+                state.ego_vehicle_state.privileged.dist_to_pedestrian
+            ),
+        },
+    )
+
+    return surface
+
+
+def create_sensor_data_surface(state: WorldState) -> pygame.surface.Surface:
+    """
+    Generates a pygame surface that draws all sensor data, as well as a third person
+    view of the ego vehicle
+    """
     third_person_view = state.ego_vehicle_state.sensor_data.third_person_view
     surface = pygame.surfarray.make_surface(np.zeros((1280, 720, 3)))
 
@@ -108,5 +135,21 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
         surface.blit(lidar_surface, lidar_pos)
     if third_person_surface is not None:
         surface.blit(third_person_surface, third_person_pos)
+
+    return surface
+
+
+def display_text(
+    surface: pygame.surface.Surface, content: Dict[str, str]
+) -> pygame.surface.Surface:
+    font = pygame.font.SysFont("Arial", 20)
+
+    x = 50
+    y = surface.get_height() - 50
+
+    for key, value in content.items():
+        text = font.render(f"{key}: {value}", True, (255, 255, 255))
+        surface.blit(text, (x, y))
+        y -= 30
 
     return surface

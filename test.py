@@ -14,29 +14,23 @@ def main():
 
     config.car_config.carla_fps = 10
 
-    config.render_server = False
-    config.render_client = False
+    config.render_client = True
 
     manager = EpisodeManager(config, None, None)
 
-    manager.start_episode()
-    for _ in range(200):
-        state = manager.step(Action(3.0, 0.0, False, 0.0))
-        if state.running is False:
-            break
+    for _ in range(50):
+        manager.start_episode()
+        for _ in range(300):
+            state = manager.step(Action(1.0, 0.0, False, 0.0))
+            if state.scenario_state.done:
+                print("DONE")
+                break
 
-        # print("STATE: " + str(state.ego_vehicle_state.speed))
-        time.sleep(0.1)
-    manager.stop_episode()
+            time.sleep(0.01)
 
-    # manager.start_episode()
-    # for _ in range(20):
-    #     state = manager.step(Action(1.0, 0.0, False, 0.0))
-    #     if state.running is False:
-    #         break
-    #
-    #     time.sleep(1.0)
-    # manager.stop_episode()
+        manager.stop_episode()
+
+    print("ENDED EPISODES")
 
     return
 

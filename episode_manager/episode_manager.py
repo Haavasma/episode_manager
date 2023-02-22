@@ -1,10 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import pathlib
 from typing import List
 from xml.etree import ElementTree as ET
 import carla
 import os
-
 
 from random import Random
 
@@ -18,7 +17,13 @@ from episode_manager.agent_handler.models.configs import (
     RGBCameraConfiguration,
 )
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
-from episode_manager.data import TRAINING_TYPE_TO_ROUTES, TrainingType
+from episode_manager.data import (
+    EVALUATION_ROUTES,
+    SCENARIOS,
+    TRAINING_ROUTES,
+    TRAINING_TYPE_TO_ROUTES,
+    TrainingType,
+)
 from episode_manager.models.world_state import WorldState
 from episode_manager.renderer import WorldStateRenderer
 
@@ -39,21 +44,18 @@ class EpisodeManagerConfiguration:
                 400,
                 400,
                 120,
-                0.1,
                 Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
             ),
             RGBCameraConfiguration(
                 400,
                 400,
                 120,
-                0.1,
                 Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
             ),
             RGBCameraConfiguration(
                 400,
                 400,
                 120,
-                0.1,
                 Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
             ),
         ],
@@ -62,6 +64,8 @@ class EpisodeManagerConfiguration:
     route_directory: pathlib.Path = pathlib.Path(
         os.path.join(os.path.dirname(__file__), "routes")
     )
+    training_routes: List[str] = field(default_factory=lambda: TRAINING_ROUTES)
+    testing_routes: List[str] = field(default_factory=lambda: EVALUATION_ROUTES)
 
 
 @dataclass
@@ -93,18 +97,16 @@ class EpisodeManager:
             self.scenario_handler = setup_scenario_handler(config)
 
         def get_episodes(training_type: TrainingType) -> List[EpisodeFiles]:
-            def get_path(dir: str, file: str):
-                return config.route_directory / dir / file
-
-            routes = []
+            routes: List[EpisodeFiles] = []
 
             for path in TRAINING_TYPE_TO_ROUTES[training_type.value]:
                 routes.append(
                     EpisodeFiles(
-                        route=get_path(training_type.value, path[0]),
-                        scenario=get_path("scenarios", path[1]),
+                        config.route_directory / path,
+                        config.route_directory / SCENARIOS[0],
                     )
                 )
+
             return routes
 
         self.routes = get_episodes(
@@ -117,8 +119,9 @@ class EpisodeManager:
         """
         Starts a new route in the simulator based on the provided configurations
         """
-        files = self.routes[Random().randint(0, len(self.routes) - 1)]
-        tree = ET.parse(files.route)
+        self.stopped = False
+        file = self.routes[Random().randint(0, len(self.routes) - 1)]
+        tree = ET.parse(file.route)
 
         # pick random id from route
         ids: List[str] = []
@@ -126,12 +129,18 @@ class EpisodeManager:
             ids.append(route.attrib["id"])
         id = ids[Random().randint(0, len(ids) - 1)]
 
-        print("Starting episode with route: " + str(files.route))
         self.scenario_handler.start_episode(
-            files.route,
-            files.scenario,
-            id,
+            file.route,
+            file.scenario,
+            "39",
         )
+
+        # print("Starting episode with route: " + str(files.route))
+        # self.scenario_handler.start_episode(
+        #     files.route,
+        #     files.scenario,
+        #     id,
+        # )
 
         self.agent_handler.restart()
         self.agent_handler.apply_control(Action(0, 0, False, 0))
@@ -144,24 +153,31 @@ class EpisodeManager:
         Runs one step/frame in the simulated scenario,
         performing the chosen action on the route environment
         """
+        if self.stopped:
+            raise Exception("Episode has already stopped")
+
         self.agent_handler.apply_control(ego_vehicle_action)
         scenario_state = self.scenario_handler.tick()
 
         agent_state = self.agent_handler.read_world_state()
 
-        world_state = WorldState(
-            agent_state, scenario_state, self.scenario_handler.is_running()
-        )
+        world_state = WorldState(agent_state, scenario_state)
 
         # Render the world state with world_renderer
         if self.world_renderer:
             self.world_renderer.render(world_state)
 
+        if scenario_state.done:
+            self.stop_episode()
+
         return world_state
 
     def stop_episode(self):
-        self.agent_handler.stop()
-        return self.scenario_handler.stop_episode()
+        if not self.stopped:
+            self.agent_handler.stop()
+            self.scenario_handler.stop_episode()
+            self.stopped = True
+        return
 
 
 def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:

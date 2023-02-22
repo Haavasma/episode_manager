@@ -51,6 +51,7 @@ class CameraManager:
         self._parent = parent_actor
         self.camera_configs = camera_configs
         self.lidar_config = lidar_config
+        self.carla_fps = carla_fps
         self._enable_third_person_view = enable_third_person_view
 
         # Third person camera
@@ -59,7 +60,6 @@ class CameraManager:
             1280,
             720,
             103,
-            1 / carla_fps,
             Transform(Location(-7, 0, 4), Rotation(-20, 0, 0)),
         )
 
@@ -80,7 +80,7 @@ class CameraManager:
             bp.set_attribute("image_size_x", f"{camera.width}")
             bp.set_attribute("image_size_y", f"{camera.height}")
             bp.set_attribute("fov", f"{camera.fov}")
-            bp.set_attribute("sensor_tick", f"{camera.sensor_tick}")
+            bp.set_attribute("sensor_tick", f"{1 /self.carla_fps}")
 
             self.sensors.append(
                 world.spawn_actor(
@@ -141,7 +141,7 @@ class CameraManager:
         bp.set_attribute("image_size_x", f"{camera.width}")
         bp.set_attribute("image_size_y", f"{camera.height}")
         bp.set_attribute("fov", f"{camera.fov}")
-        bp.set_attribute("sensor_tick", f"{camera.sensor_tick}")
+        bp.set_attribute("sensor_tick", f"{1 /self.carla_fps}")
 
         sensor = world.spawn_actor(
             bp, camera.transform.get_carla_transform(), attach_to=self._parent
@@ -182,7 +182,7 @@ class CameraManager:
         """
         Destroy the sensors
         """
-        for sensor in self.sensors:
-            sensor.destroy()
+        # for sensor in self.sensors:
+        #     sensor.destroy()
 
         return

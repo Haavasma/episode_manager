@@ -9,7 +9,6 @@ class RGBCameraConfiguration:
     width: int
     height: int
     fov: int
-    sensor_tick: float
     transform: Transform
 
 

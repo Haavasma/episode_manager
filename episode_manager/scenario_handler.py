@@ -26,35 +26,18 @@ class Observation:
     test: np.ndarray
 
 
-# TODO: inject global plan into ScenarioHandler by
-
 # Backhanded solution to injecting information
 # to the scenario runner and sending messages across threads
 tick_queue = 0
 
-
-# Backhanded solution to injecting information to the scenario runner
 scenario_started = False
 
 
 @dataclass
-class PrivilegedScenarioData:
-    dist_to_traffic_light: float
-    dist_to_vehicle: float
-    dist_to_pedestrian: float
-    dist_to_route: float
-
-
-@dataclass
-class UnprivilegedScenarioData:
+class ScenarioState:
     global_plan: List[Any]
     global_plan_world_coord: List[Any]
-
-
-@dataclass
-class ScenarioState:
-    privileged: PrivilegedScenarioData
-    unprivileged: UnprivilegedScenarioData
+    done: bool
 
 
 @dataclass
@@ -70,13 +53,13 @@ class ScenarioHandler:
     def start_episode(
         self,
         route_file: pathlib.Path,
-        scenarios_file: pathlib.Path,
+        scenario_file: pathlib.Path,
         route_id: str,
     ):
 
-        timeout = 30
+        timeout = 60
         args: Namespace = Namespace(
-            route=[route_file, scenarios_file, route_id],
+            route=[route_file, scenario_file, route_id],
             sync=True,
             port=self.port,
             timeout=f"{timeout}",
@@ -116,6 +99,7 @@ class ScenarioHandler:
 
         print("WAITING FOR SCENARIO TO START")
         global tick_queue
+        tick_queue = 0
         while not scenario_started:
             if (start + timeout) < time.time():
                 # Stop runner_thread with kill signal
@@ -139,25 +123,36 @@ class ScenarioHandler:
 
         # return self.tick()
 
-    def is_running(self):
-        return self.runner_thread.is_alive()
-
     def tick(self) -> ScenarioState:
         global tick_queue
+
+        # wait for all ticks on server to be processed
+        while tick_queue > 0 and self.runner_thread.is_alive():
+            pass
+
         tick_queue += 1
 
-        # TODO: read information from carla server and find the privileged state information
-        # (distance to traffic light, vehicle, pedestrian, and route, ego vehicle exact position)
-
         return ScenarioState(
-            PrivilegedScenarioData(0, 0, 0, 0),
-            UnprivilegedScenarioData(self._global_plan, self._global_plan_world_coord),
+            [],
+            [],
+            not self.runner_thread.is_alive(),
         )
 
     def stop_episode(self):
-        """ """
+        """
+        Stop the scenario runner loop
+        """
         global tick_queue
         tick_queue = -1
+
+        # wait for scenario runner to stop
+        while self.runner_thread.is_alive():
+            pass
+
+        if self.scenario_runner:
+            self.scenario_runner.destroy()
+            del self.scenario_runner
+            self.scenario_runner = None
 
 
 class ScenarioManagerControlled(ScenarioManager):
@@ -193,6 +188,8 @@ class ScenarioManagerControlled(ScenarioManager):
                 print("SCENARIO WAS STOPPED")
                 self._running = False
 
+        tick_queue = -1
+
         scenario_started = False
         self.cleanup()
 
@@ -203,4 +200,5 @@ class ScenarioManagerControlled(ScenarioManager):
         self.scenario_duration_game = end_game_time - start_game_time
 
         if self.scenario_tree.status == py_trees.common.Status.FAILURE:
+            tick_queue = -1
             print("ScenarioManager: Terminated due to failure")

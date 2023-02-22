@@ -8,4 +8,3 @@ from episode_manager.scenario_handler import ScenarioState
 class WorldState:
     ego_vehicle_state: VehicleState
     scenario_state: ScenarioState
-    running: bool
