@@ -132,7 +132,7 @@ class EpisodeManager:
         self.scenario_handler.start_episode(
             file.route,
             file.scenario,
-            "39",
+            id,
         )
 
         # print("Starting episode with route: " + str(files.route))
