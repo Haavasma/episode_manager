@@ -135,13 +135,6 @@ class EpisodeManager:
             id,
         )
 
-        # print("Starting episode with route: " + str(files.route))
-        # self.scenario_handler.start_episode(
-        #     files.route,
-        #     files.scenario,
-        #     id,
-        # )
-
         self.agent_handler.restart()
         self.agent_handler.apply_control(Action(0, 0, False, 0))
         self.scenario_handler.tick()
