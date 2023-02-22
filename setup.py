@@ -8,14 +8,7 @@ setup(
     name="episode_manager",
     version="0.9.13",
     py_modules=["episode_manager"],
-    package_data={
-        "episode_manager": [
-            "routes/training_routes/*.xml",
-            "routes/validation_routes/*.xml",
-            "routes/evaluation_routes/*.xml",
-            "routes/scenarios/*.json",
-        ]
-    },
+    package_data={"episode_manager": ["routes/*.xml", "routes/*.json"]},
     install_requires=[
         "scenario_runner @ git+https://github.com/Haavasma/scenario_runner.git@v0.9.13-setup-script",
         "typing-extensions>=4.0.0",
