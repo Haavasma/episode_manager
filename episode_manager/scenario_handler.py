@@ -20,6 +20,8 @@ from srunner.scenariomanager.watchdog import Watchdog
 from srunner.scenarios.route_scenario import interpolate_trajectory
 from srunner.tools.route_manipulation import downsample_route
 
+from episode_manager.models.world_state import ScenarioState
+
 
 @dataclass
 class Observation:
@@ -31,13 +33,6 @@ class Observation:
 tick_queue = 0
 
 scenario_started = False
-
-
-@dataclass
-class ScenarioState:
-    global_plan: List[Any]
-    global_plan_world_coord: List[Any]
-    done: bool
 
 
 @dataclass
@@ -133,8 +128,8 @@ class ScenarioHandler:
         tick_queue += 1
 
         return ScenarioState(
-            [],
-            [],
+            self._global_plan,
+            self._global_plan_world_coord,
             not self.runner_thread.is_alive(),
         )
 

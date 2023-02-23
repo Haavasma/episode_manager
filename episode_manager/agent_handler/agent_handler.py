@@ -13,33 +13,20 @@ from manual_control import (
     get_actor_display_name,
 )
 
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, List
 
 from episode_manager.agent_handler.camera_manager import CameraManager
-
-
-from .models import (
-    CameraManagerData,
-    CarConfiguration,
+from episode_manager.agent_handler.models.transform import from_carla_location
+from episode_manager.models.world_state import (
+    PrivilegedScenarioData,
+    ScenarioState,
+    VehicleState,
 )
 
 
-@dataclass
-class PrivilegedScenarioData:
-    dist_to_traffic_light: float
-    dist_to_vehicle: float
-    dist_to_pedestrian: float
-    dist_to_route: float
-
-
-@dataclass
-class VehicleState:
-    sensor_data: CameraManagerData
-    speed: float
-    gps: Tuple[float, float]
-    compass: float
-    running: bool
-    privileged: PrivilegedScenarioData
+from .models import (
+    CarConfiguration,
+)
 
 
 @dataclass
@@ -150,7 +137,7 @@ class AgentHandler:
 
         return
 
-    def read_world_state(self) -> VehicleState:
+    def read_world_state(self, scenario_state: ScenarioState) -> VehicleState:
         """
         Read the state of the world from the sensors of the vehicle
         """
@@ -172,12 +159,14 @@ class AgentHandler:
                 gps,
                 compass,
                 True,
-                self._get_privileged_scenario_data(),
+                self._get_privileged_scenario_data(scenario_state),
             )
 
         raise Exception("Sensors not initialized")
 
-    def _get_privileged_scenario_data(self) -> PrivilegedScenarioData:
+    def _get_privileged_scenario_data(
+        self, scenario_state: ScenarioState
+    ) -> PrivilegedScenarioData:
         """
         Gathers privileged scenario data
         """
@@ -217,17 +206,60 @@ class AgentHandler:
             lights, lambda light: light.state == carla.libcarla.TrafficLightState.Red
         )
 
-        # DISTANCE TO CLOSEST FACING VEHICLE
+        # DISTANCE TO CLOSEST FACING VEHICLE TODO: rework to checking the lane instead
         vehicles = actor_list.filter("*vehicle*")
-        vehicle_front_distance = get_distance(vehicles, lambda _: True)
+        vehicle_front_distance = self.distance_to_closest_vehicle(vehicles)
 
         # DISTANCE TO CLOSEST FACING PEDESTRIAN
         pedestrians = actor_list.filter("*walker*")
         pedestrian_front_distance = get_distance(pedestrians, lambda _: True)
 
         return PrivilegedScenarioData(
-            red_light_distance, vehicle_front_distance, pedestrian_front_distance, 0
+            red_light_distance,
+            vehicle_front_distance,
+            pedestrian_front_distance,
+            from_carla_location(self.player.get_location()),
         )
+
+    def distance_to_closest_vehicle(self, vehicle_list: List[Any]) -> float:
+        ego_vehicle_location = self.player.get_location()
+        ego_vehicle_waypoint = self.map.get_waypoint(ego_vehicle_location)
+
+        min_distance = self.config.proximity_threshold
+
+        for target_vehicle in vehicle_list:
+            # do not account for the ego vehicle
+            if target_vehicle.id == self.player.id:
+                continue
+
+            # if the object is not in our lane it's not an obstacle
+            target_vehicle_waypoint = self.map.get_waypoint(
+                target_vehicle.get_location()
+            )
+            if (
+                target_vehicle_waypoint.road_id != ego_vehicle_waypoint.road_id
+                or target_vehicle_waypoint.lane_id != ego_vehicle_waypoint.lane_id
+            ):
+                continue
+
+            loc = target_vehicle.get_location()
+            if is_within_distance_ahead(
+                loc,
+                ego_vehicle_location,
+                self.player.get_transform().rotation.yaw,
+                self.config.proximity_threshold,
+            ):
+                # calculate the distance to the vehicle in front
+                distance = math.sqrt(
+                    (loc.x - ego_vehicle_location.x) ** 2
+                    + (loc.y - ego_vehicle_location.y) ** 2
+                    + (loc.z - ego_vehicle_location.z) ** 2
+                )
+
+                if distance < min_distance:
+                    min_distance = distance
+
+        return min_distance if min_distance < self.config.proximity_threshold else -1.0
 
     def stop(self):
         """
@@ -288,3 +320,32 @@ def get_forward_speed(player):
     )
     speed = np.dot(vel_np, orientation)
     return speed
+
+
+def is_within_distance_ahead(
+    target_location, current_location, orientation, max_distance
+):
+    """
+    Check if a target object is within a certain distance in front of a reference object.
+
+    :param target_location: location of the target object
+    :param current_location: location of the reference object
+    :param orientation: orientation of the reference object
+    :param max_distance: maximum allowed distance
+    :return: True if target object is within max_distance ahead of the reference object
+    """
+    target_vector = np.array(
+        [target_location.x - current_location.x, target_location.y - current_location.y]
+    )
+    norm_target = np.linalg.norm(target_vector)
+    if norm_target > max_distance:
+        return False
+
+    forward_vector = np.array(
+        [math.cos(math.radians(orientation)), math.sin(math.radians(orientation))]
+    )
+    d_angle = math.degrees(
+        math.acos(np.dot(forward_vector, target_vector) / norm_target)
+    )
+
+    return d_angle < 45.0

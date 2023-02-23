@@ -20,31 +20,13 @@ class LidarConfiguration:
     transform: Transform = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 
-# TODO: Agent class that is used to act based on the observations,
-# then returns an action, all in the format of the types specified above
-# RLAgent:
-# A wrapper to that agent should be compatible with running an autonomous agent
-# in the CARLA simulator,
-# CARLALeaderboardAgentWrapper(AutonomousAgent):
-#     rl_agent: RLAgent
-# The agent should have an interface that takes in the WorldState (only unprivileged information)
-# and returns the encoded state from the model ()
-# If render is true, auxillary information should also be returned
-# (numpy array of the images we want to show from the auxillary predictions)
-# And these should be passed to agent_handler's render method
-
-
-# So for RL training, we use the RLAgent class,
-# Where vision encoder can be passed, function that handles information
-# from the env and returns visino encoding
-
-
 @dataclass
 class CarConfiguration:
     model: str
     cameras: List[RGBCameraConfiguration]
     lidar: LidarConfiguration
     carla_fps = 10
+    proximity_threshold = 20.0
 
     def __post_init__(self):
         self.carla_configuration = self.to_carla_leader_board_sensor_configuration()

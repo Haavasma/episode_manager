@@ -15,13 +15,22 @@ def main():
     config.car_config.carla_fps = 10
 
     config.render_client = True
+    config.render_server = True
 
     manager = EpisodeManager(config, None, None)
 
     for _ in range(50):
-        manager.start_episode()
+        state = manager.start_episode()
         for _ in range(300):
-            state = manager.step(Action(1.0, 0.0, False, 0.0))
+            action = Action(1.0, 0.0, False, 0.0)
+
+            if (
+                state.ego_vehicle_state.privileged.dist_to_vehicle < 10
+                and state.ego_vehicle_state.privileged.dist_to_vehicle >= 0.0
+            ):
+                action = Action(0.0, 1.0, False, 0.0)
+
+            state = manager.step(action)
             if state.scenario_state.done:
                 print("DONE")
                 break

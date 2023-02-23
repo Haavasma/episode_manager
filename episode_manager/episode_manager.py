@@ -115,7 +115,7 @@ class EpisodeManager:
 
         return
 
-    def start_episode(self):
+    def start_episode(self) -> WorldState:
         """
         Starts a new route in the simulator based on the provided configurations
         """
@@ -137,9 +137,9 @@ class EpisodeManager:
 
         self.agent_handler.restart()
         self.agent_handler.apply_control(Action(0, 0, False, 0))
-        self.scenario_handler.tick()
-
-        return
+        scenario_state = self.scenario_handler.tick()
+        agent_state = self.agent_handler.read_world_state(scenario_state)
+        return WorldState(agent_state, scenario_state)
 
     def step(self, ego_vehicle_action: Action) -> WorldState:
         """
@@ -152,7 +152,7 @@ class EpisodeManager:
         self.agent_handler.apply_control(ego_vehicle_action)
         scenario_state = self.scenario_handler.tick()
 
-        agent_state = self.agent_handler.read_world_state()
+        agent_state = self.agent_handler.read_world_state(scenario_state)
 
         world_state = WorldState(agent_state, scenario_state)
 

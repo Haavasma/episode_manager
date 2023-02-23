@@ -1,6 +1,7 @@
 from typing import Dict, List
 import pygame
 import numpy as np
+import math
 
 from episode_manager.models.world_state import WorldState
 
@@ -30,6 +31,7 @@ class WorldStateRenderer:
             self.height = surface.get_height()
             self.width = surface.get_width()
         elif surface.get_width() != self.width or surface.get_height() != self.height:
+
             pygame.quit()
             pygame.init()
             pygame.font.init()
@@ -49,9 +51,6 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
     """
     Generates a pygame surface frame from the WorldState sensor data
     """
-    # TODO: add fields for information about current speed,
-    # distance to next wayptoint, etc.
-
     surface = create_sensor_data_surface(state)
 
     surface = display_text(
@@ -70,6 +69,17 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
             ),
         },
     )
+
+    height = surface.get_height()
+    width = surface.get_width()
+
+    height_limit = 900
+    if surface.get_height() > height_limit:
+        scale_factor = height_limit / height
+        new_width = round(width * scale_factor)
+        new_height = round(height * scale_factor)
+
+        surface = pygame.transform.scale(surface, (new_width, new_height))
 
     return surface
 
@@ -148,8 +158,9 @@ def display_text(
     y = surface.get_height() - 50
 
     for key, value in content.items():
-        text = font.render(f"{key}: {value}", True, (255, 255, 255))
+        text = font.render(f"{key}: {value}", True, (255, 0, 0))
         surface.blit(text, (x, y))
+
         y -= 30
 
     return surface

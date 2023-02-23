@@ -1,7 +1,33 @@
 from dataclasses import dataclass
+from typing import Any, List, Tuple
 
-from episode_manager.agent_handler.agent_handler import VehicleState
-from episode_manager.scenario_handler import ScenarioState
+from episode_manager.agent_handler.models.sensor import CameraManagerData
+from episode_manager.agent_handler.models.transform import Location
+
+
+@dataclass
+class PrivilegedScenarioData:
+    dist_to_traffic_light: float
+    dist_to_vehicle: float
+    dist_to_pedestrian: float
+    ego_vehicle_location: Location
+
+
+@dataclass
+class VehicleState:
+    sensor_data: CameraManagerData
+    speed: float
+    gps: Tuple[float, float]
+    compass: float
+    running: bool
+    privileged: PrivilegedScenarioData
+
+
+@dataclass
+class ScenarioState:
+    global_plan: List[Any]
+    global_plan_world_coord: List[Any]
+    done: bool
 
 
 @dataclass

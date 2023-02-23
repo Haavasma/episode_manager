@@ -93,6 +93,6 @@ class CameraManagerData:
     images: List[np.ndarray]
     # contains the lidar data from each applied sensor from a given frame
     lidar_data: LidarData
+    # Third person view camera image
     third_person_view: np.ndarray
-    # MIGHT COME IN THE FUTURE
     # radar: List[np.ndarray]

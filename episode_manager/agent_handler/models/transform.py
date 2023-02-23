@@ -12,6 +12,10 @@ class Location:
         return carla.Location(x=self.x, y=self.y, z=self.z)
 
 
+def from_carla_location(carla_location: carla.Location) -> Location:
+    return Location(carla_location.x, carla_location.y, carla_location.z)
+
+
 @dataclass
 class Rotation:
     pitch: float
