@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 
@@ -17,6 +17,7 @@ class LidarConfiguration:
     enabled: bool = True
     channels: int = 32
     range: float = 5000
+    shape: Tuple[int, int, int] = (3, 256, 256)
     transform: Transform = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 

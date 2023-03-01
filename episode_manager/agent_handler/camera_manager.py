@@ -67,7 +67,9 @@ class CameraManager:
         self.sensors = []
 
         # Camera sensors
-        self.image_data = [np.array([]) for _ in camera_configs]
+        self.image_data = [
+            np.zeros((config.height, config.width, 4)) for config in camera_configs
+        ]
 
         bp_library = world.get_blueprint_library()
 

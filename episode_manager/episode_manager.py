@@ -32,8 +32,8 @@ from episode_manager.scenario_handler import ScenarioHandler
 
 @dataclass
 class EpisodeManagerConfiguration:
-    host: str = "127.0.0.1"
     port: int = 2000
+    host: str = "127.0.0.1"
     render_server: bool = False
     render_client: bool = False
     training_type: TrainingType = TrainingType.TRAINING
@@ -86,6 +86,7 @@ class EpisodeManager:
         self.scenario_handler = scenario_handler
         self.agent_handler = agent_handler
         self.world_renderer = None
+        self.stopped = True
 
         if config.render_client:
             self.world_renderer = WorldStateRenderer()
@@ -139,6 +140,7 @@ class EpisodeManager:
         self.agent_handler.apply_control(Action(0, 0, False, 0))
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
+
         return WorldState(agent_state, scenario_state)
 
     def step(self, ego_vehicle_action: Action) -> WorldState:

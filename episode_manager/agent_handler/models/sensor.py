@@ -28,7 +28,7 @@ class LidarData:
     def _to_bev(self) -> np.ndarray:
         # TODO: find ways to optimize this
         if len(self.points) <= 0:
-            return np.zeros((1, 3, 256, 256))
+            return np.zeros((3, 256, 256))
 
         data: List[List[float]] = []
 
@@ -46,13 +46,8 @@ class LidarData:
         lidar_transformed_degrees = lidar_transformed
         lidar_bev = lidar_transformed_degrees[::-1]
 
-        lidar_bev = np.append(
-            lidar_bev,
-            np.zeros((1, 1, 256, 256)),
-            axis=1,
-        )
 
-        return lidar_bev
+        return lidar_bev[0]
 
 
 def _lidar_to_histogram_features(lidar):
