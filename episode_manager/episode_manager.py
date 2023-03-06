@@ -14,7 +14,6 @@ from episode_manager.agent_handler import (
 )
 from episode_manager.agent_handler.models.configs import (
     LidarConfiguration,
-    RGBCameraConfiguration,
 )
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import (
@@ -40,26 +39,32 @@ class EpisodeManagerConfiguration:
     car_config: CarConfiguration = CarConfiguration(
         "tesla",
         [
-            RGBCameraConfiguration(
-                400,
-                400,
-                120,
-                Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
-            ),
-            RGBCameraConfiguration(
-                400,
-                400,
-                120,
-                Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
-            ),
-            RGBCameraConfiguration(
-                400,
-                400,
-                120,
-                Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
-            ),
+            {
+                "height": 400,
+                "width": 400,
+                "fov": 120,
+                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
+            },
+            {
+                "height": 400,
+                "width": 400,
+                "fov": 120,
+                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
+            },
+            {
+                "height": 400,
+                "width": 400,
+                "fov": 120,
+                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
+            },
         ],
-        LidarConfiguration(enabled=True),
+        {
+            "enabled": True,
+            "channels": 32,
+            "range": 5000,
+            "shape": (3, 256, 256),
+            "transform": Transform(Location(1.3, 0, 2.5), Rotation(0, -90, 0)),
+        },
     )
     route_directory: pathlib.Path = pathlib.Path(
         os.path.join(os.path.dirname(__file__), "routes")
@@ -141,7 +146,7 @@ class EpisodeManager:
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
 
-        return WorldState(agent_state, scenario_state)
+        return WorldState(ego_vehicle_state=agent_state, scenario_state=scenario_state)
 
     def step(self, ego_vehicle_action: Action) -> WorldState:
         """
@@ -156,7 +161,10 @@ class EpisodeManager:
 
         agent_state = self.agent_handler.read_world_state(scenario_state)
 
-        world_state = WorldState(agent_state, scenario_state)
+        world_state: WorldState = WorldState(
+            ego_vehicle_state=agent_state,
+            scenario_state=scenario_state,
+        )
 
         # Render the world state with world_renderer
         if self.world_renderer:

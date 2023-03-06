@@ -1,24 +1,22 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, TypedDict
 
-from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
+from episode_manager.agent_handler.models.transform import Transform
 
 
-@dataclass
-class RGBCameraConfiguration:
+class RGBCameraConfiguration(TypedDict):
     width: int
     height: int
     fov: int
     transform: Transform
 
 
-@dataclass
-class LidarConfiguration:
-    enabled: bool = True
-    channels: int = 32
-    range: float = 5000
-    shape: Tuple[int, int, int] = (3, 256, 256)
-    transform: Transform = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
+class LidarConfiguration(TypedDict):
+    enabled: bool  # = True
+    channels: int  # = 32
+    range: float  # = 5000
+    shape: Tuple[int, int, int]  #  = (3, 256, 256)
+    transform: Transform  # = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 
 @dataclass
@@ -30,7 +28,7 @@ class CarConfiguration:
     proximity_threshold = 20.0
 
     def __post_init__(self):
-        self.carla_configuration = self.to_carla_leader_board_sensor_configuration()
+        self.carla_configuration = self._to_carla_leader_board_sensor_configuration()
 
     def get_carla_configuration(self):
         """
@@ -38,34 +36,34 @@ class CarConfiguration:
         """
         return self.carla_configuration
 
-    def to_carla_leader_board_sensor_configuration(self):
+    def _to_carla_leader_board_sensor_configuration(self):
         sensors = []
         for index, camera in enumerate(self.cameras):
             sensors.append(
                 {
                     "type": "sensor.camera.rgb",
-                    "x": camera.transform.location.x,
-                    "y": camera.transform.location.y,
-                    "z": camera.transform.location.z,
-                    "roll": camera.transform.rotation.roll,
-                    "pitch": camera.transform.rotation.pitch,
-                    "yaw": camera.transform.rotation.yaw,
-                    "width": camera.width,
-                    "height": camera.height,
-                    "fov": camera.fov,
+                    "x": camera["transform"].location.x,
+                    "y": camera["transform"].location.y,
+                    "z": camera["transform"].location.z,
+                    "roll": camera["transform"].rotation.roll,
+                    "pitch": camera["transform"].rotation.pitch,
+                    "yaw": camera["transform"].rotation.yaw,
+                    "width": camera["width"],
+                    "height": camera["width"],
+                    "fov": camera["fov"],
                     "id": f"rgb_{index}",
                 }
             )
-        if self.lidar.enabled:
+        if self.lidar["enabled"]:
             sensors.append(
                 {
                     "type": "sensor.lidar.ray_cast",
-                    "x": self.lidar.transform.location.x,
-                    "y": self.lidar.transform.location.y,
-                    "z": self.lidar.transform.location.z,
-                    "roll": self.lidar.transform.rotation.roll,
-                    "pitch": self.lidar.transform.rotation.pitch,
-                    "yaw": self.lidar.transform.rotation.yaw,
+                    "x": self.lidar["transform"].location.x,
+                    "y": self.lidar["transform"].location.y,
+                    "z": self.lidar["transform"].location.z,
+                    "roll": self.lidar["transform"].rotation.roll,
+                    "pitch": self.lidar["transform"].rotation.pitch,
+                    "yaw": self.lidar["transform"].rotation.yaw,
                     "id": "lidar",
                 }
             )

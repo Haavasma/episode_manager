@@ -1,7 +1,6 @@
 from typing import Dict, List
 import pygame
 import numpy as np
-import math
 
 from episode_manager.models.world_state import WorldState
 
@@ -63,7 +62,6 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
             "distance to vehicle": str(
                 state.ego_vehicle_state.privileged.dist_to_vehicle
             ),
-            "distance to route": str(state.ego_vehicle_state.privileged.dist_to_route),
             "distance to pedestrian": str(
                 state.ego_vehicle_state.privileged.dist_to_pedestrian
             ),

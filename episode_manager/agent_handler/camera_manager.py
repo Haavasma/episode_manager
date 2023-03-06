@@ -1,17 +1,16 @@
-from typing import List
 import weakref
+from typing import List
+
+import carla
+import numpy as np
 
 from episode_manager.agent_handler.models import (
-    RGBCameraConfiguration,
+    CameraManagerData,
     LidarConfiguration,
     LidarData,
     LidarPoint,
-    CameraManagerData,
+    RGBCameraConfiguration,
 )
-
-import numpy as np
-import carla
-
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 
 
@@ -55,20 +54,21 @@ class CameraManager:
         self._enable_third_person_view = enable_third_person_view
 
         # Third person camera
-        self.third_person_image = None
-        self.third_person_camera_config = RGBCameraConfiguration(
-            1280,
-            720,
-            103,
-            Transform(Location(-7, 0, 4), Rotation(-20, 0, 0)),
-        )
+        self.third_person_image = np.array([])
+        self.third_person_camera_config = {
+            "width": 1280,
+            "height": 720,
+            "fov": 103,
+            "transform": Transform(Location(-7, 0, 4), Rotation(-20, 0, 0)),
+        }
 
         world = self._parent.get_world()
         self.sensors = []
 
         # Camera sensors
         self.image_data = [
-            np.zeros((config.height, config.width, 4)) for config in camera_configs
+            np.zeros((config["height"], config["width"], 4))
+            for config in camera_configs
         ]
 
         bp_library = world.get_blueprint_library()
@@ -79,15 +79,15 @@ class CameraManager:
 
         for index, camera in enumerate(camera_configs):
             bp = bp_library.find("sensor.camera.rgb")
-            bp.set_attribute("image_size_x", f"{camera.width}")
-            bp.set_attribute("image_size_y", f"{camera.height}")
-            bp.set_attribute("fov", f"{camera.fov}")
+            bp.set_attribute("image_size_x", f"{camera['width']}")
+            bp.set_attribute("image_size_y", f"{camera['height']}")
+            bp.set_attribute("fov", f"{camera['fov']}")
             bp.set_attribute("sensor_tick", f"{1 /self.carla_fps}")
 
             self.sensors.append(
                 world.spawn_actor(
                     bp,
-                    camera.transform.get_carla_transform(),
+                    camera["transform"].get_carla_transform(),
                     attach_to=self._parent,
                 )
             )
@@ -113,12 +113,14 @@ class CameraManager:
 
         if lidar_config is not None:
             bp = bp_library.find("sensor.lidar.ray_cast")
-            bp.set_attribute("channels", f"{lidar_config.channels}")
-            bp.set_attribute("range", f"{lidar_config.range}")
+            bp.set_attribute("channels", f"{lidar_config['channels']}")
+            bp.set_attribute("range", f"{lidar_config['range']}")
             # bp.set_attribute("rotation_frequency", f"{10}")
 
             sensor = world.spawn_actor(
-                bp, lidar_config.transform.get_carla_transform(), attach_to=self._parent
+                bp,
+                lidar_config["transform"].get_carla_transform(),
+                attach_to=self._parent,
             )
 
             sensor.listen(lambda data: set_lidar_data(data))
@@ -132,21 +134,21 @@ class CameraManager:
         def set_third_person_data(image):
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             image = array.reshape(
-                camera.height,
-                camera.width,
+                camera["height"],
+                camera["width"],
                 4,
             )
 
             self.third_person_image = image
 
         bp = bp_library.find("sensor.camera.rgb")
-        bp.set_attribute("image_size_x", f"{camera.width}")
-        bp.set_attribute("image_size_y", f"{camera.height}")
-        bp.set_attribute("fov", f"{camera.fov}")
+        bp.set_attribute("image_size_x", f"{camera['width']}")
+        bp.set_attribute("image_size_y", f"{camera['height']}")
+        bp.set_attribute("fov", f"{camera['fov']}")
         bp.set_attribute("sensor_tick", f"{1 /self.carla_fps}")
 
         sensor = world.spawn_actor(
-            bp, camera.transform.get_carla_transform(), attach_to=self._parent
+            bp, camera["transform"].get_carla_transform(), attach_to=self._parent
         )
 
         sensor.listen(lambda image: set_third_person_data(image))
@@ -159,8 +161,8 @@ class CameraManager:
         self = weak_ref()
         img = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         img = img.reshape(
-            self.camera_configs[index].height,
-            self.camera_configs[index].width,
+            self.camera_configs[index]["height"],
+            self.camera_configs[index]["width"],
             4,
         )
 
@@ -168,7 +170,9 @@ class CameraManager:
 
     def get_sensor_data(self) -> CameraManagerData:
         return CameraManagerData(
-            self.image_data, self.lidar_data, self.third_person_image
+            images=self.image_data,
+            lidar_data=self.lidar_data,
+            third_person_view=self.third_person_image,
         )
 
     def stop(self):

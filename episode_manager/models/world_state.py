@@ -19,7 +19,6 @@ class VehicleState:
     speed: float
     gps: Tuple[float, float]
     compass: float
-    running: bool
     privileged: PrivilegedScenarioData
 
 

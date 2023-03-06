@@ -114,9 +114,7 @@ class ScenarioHandler:
         self._global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
         self._global_plan = [gps_route[x] for x in ds_ids]
 
-        return
-
-        # return self.tick()
+        return self.tick()
 
     def tick(self) -> ScenarioState:
         global tick_queue
@@ -128,9 +126,9 @@ class ScenarioHandler:
         tick_queue += 1
 
         return ScenarioState(
-            self._global_plan,
-            self._global_plan_world_coord,
-            not self.runner_thread.is_alive(),
+            global_plan=self._global_plan,
+            global_plan_world_coord=self._global_plan_world_coord,
+            done=not self.runner_thread.is_alive(),
         )
 
     def stop_episode(self):

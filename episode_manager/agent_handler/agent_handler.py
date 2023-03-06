@@ -1,19 +1,19 @@
-from dataclasses import dataclass
-from typing_extensions import override
-import time
-import carla
-import sys
-import numpy as np
 import math
+import sys
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, List
+
+import carla
+import numpy as np
 from manual_control import (
-    GnssSensor,
     CollisionSensor,
-    LaneInvasionSensor,
+    GnssSensor,
     IMUSensor,
+    LaneInvasionSensor,
     get_actor_display_name,
 )
-
-from typing import Any, Callable, List
+from typing_extensions import override
 
 from episode_manager.agent_handler.camera_manager import CameraManager
 from episode_manager.agent_handler.models.transform import from_carla_location
@@ -22,7 +22,6 @@ from episode_manager.models.world_state import (
     ScenarioState,
     VehicleState,
 )
-
 
 from .models import (
     CarConfiguration,
@@ -154,12 +153,11 @@ class AgentHandler:
             sensor_data = self.camera_manager.get_sensor_data()
 
             return VehicleState(
-                sensor_data,
-                speed,
-                gps,
-                compass,
-                True,
-                self._get_privileged_scenario_data(scenario_state),
+                sensor_data=sensor_data,
+                speed=speed,
+                gps=gps,
+                compass=compass,
+                privileged=self._get_privileged_scenario_data(scenario_state),
             )
 
         raise Exception("Sensors not initialized")
@@ -215,10 +213,10 @@ class AgentHandler:
         pedestrian_front_distance = get_distance(pedestrians, lambda _: True)
 
         return PrivilegedScenarioData(
-            red_light_distance,
-            vehicle_front_distance,
-            pedestrian_front_distance,
-            from_carla_location(self.player.get_location()),
+            dist_to_traffic_light=red_light_distance,
+            dist_to_vehicle=vehicle_front_distance,
+            dist_to_pedestrian=pedestrian_front_distance,
+            ego_vehicle_location=from_carla_location(self.player.get_location()),
         )
 
     def distance_to_closest_vehicle(self, vehicle_list: List[Any]) -> float:

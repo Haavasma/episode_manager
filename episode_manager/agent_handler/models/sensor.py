@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List
+
 import numpy as np
 
 
@@ -45,7 +46,6 @@ class LidarData:
         )
         lidar_transformed_degrees = lidar_transformed
         lidar_bev = lidar_transformed_degrees[::-1]
-
 
         return lidar_bev[0]
 
