@@ -11,6 +11,7 @@ class PrivilegedScenarioData:
     dist_to_vehicle: float
     dist_to_pedestrian: float
     ego_vehicle_location: Location
+    speed_limit: float = 8.0
 
 
 @dataclass
