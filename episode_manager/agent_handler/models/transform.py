@@ -26,6 +26,12 @@ class Rotation:
         return carla.Rotation(pitch=self.pitch, yaw=self.yaw, roll=self.roll)
 
 
+def from_carla_rotation(carla_rotation: carla.Rotation) -> Rotation:
+    return Rotation(
+        pitch=carla_rotation.pitch, yaw=carla_rotation.yaw, roll=carla_rotation.roll
+    )
+
+
 @dataclass
 class Transform:
     location: Location
@@ -41,3 +47,14 @@ class Transform:
         Returns a carla Transform with the data of the current Transform
         """
         return self.carla_transform
+
+
+def from_carla_transform(carla_transform: carla.Transform) -> Transform:
+    """
+    Parse from carla Transform to typed Transform
+    """
+
+    return Transform(
+        location=from_carla_location(carla_transform.location),
+        rotation=from_carla_rotation(carla_transform.rotation),
+    )

@@ -32,6 +32,7 @@ from episode_manager.scenario_handler import ScenarioHandler
 @dataclass
 class EpisodeManagerConfiguration:
     port: int = 2000
+    traffic_manager_port: int = 2001
     host: str = "127.0.0.1"
     render_server: bool = False
     render_client: bool = False
@@ -204,6 +205,9 @@ def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
 
 def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandler:
     scenario_handler = ScenarioHandler(
-        config.host, config.port, carla_fps=config.car_config.carla_fps
+        config.host,
+        config.port,
+        config.traffic_manager_port,
+        carla_fps=config.car_config.carla_fps,
     )
     return scenario_handler

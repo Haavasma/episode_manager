@@ -19,6 +19,7 @@ from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.watchdog import Watchdog
 from srunner.scenarios.route_scenario import interpolate_trajectory
 from srunner.tools.route_manipulation import downsample_route
+from episode_manager.agent_handler.models.transform import from_carla_transform
 
 from episode_manager.models.world_state import ScenarioState
 
@@ -43,6 +44,7 @@ class ScenarioHandler:
 
     host: str
     port: int
+    traffic_manager_port: int
     carla_fps: int = 10
 
     def start_episode(
@@ -64,7 +66,7 @@ class ScenarioHandler:
             openscenario=None,
             repetitions=1,
             reloadWorld=True,
-            trafficManagerPort=self.port + 1000,
+            trafficManagerPort=self.traffic_manager_port,
             trafficManagerSeed="0",
             waitForEgo=False,
             record="",
@@ -111,7 +113,13 @@ class ScenarioHandler:
         )
 
         ds_ids = downsample_route(route, 1)
-        self._global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
+
+        global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
+        self._global_plan_world_coord = [
+            (from_carla_transform(point[0]), point[1])
+            for point in global_plan_world_coord
+        ]
+
         self._global_plan = [gps_route[x] for x in ds_ids]
 
         return self.tick()

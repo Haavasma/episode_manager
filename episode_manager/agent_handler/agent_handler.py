@@ -16,7 +16,9 @@ from manual_control import (
 from typing_extensions import override
 
 from episode_manager.agent_handler.camera_manager import CameraManager
-from episode_manager.agent_handler.models.transform import from_carla_location
+from episode_manager.agent_handler.models.transform import (
+    from_carla_transform,
+)
 from episode_manager.models.world_state import (
     PrivilegedScenarioData,
     ScenarioState,
@@ -46,7 +48,7 @@ class Action:
 
 @dataclass
 class HUD:
-    notificatio: str = ""
+    _notification: str = ""
 
     def notification(self, notification: str):
         """
@@ -56,7 +58,6 @@ class HUD:
 
 
 class AgentHandler:
-    @override
     def __init__(
         self,
         carla_world: carla.World,
@@ -187,8 +188,6 @@ class AgentHandler:
                         self.player.get_transform().rotation.yaw,
                     )
 
-                    # print(f"TRAFFIC LIGHT STATE: {light.state}")
-
                     if (
                         magnitude < 80.0
                         and angle < min(25.0, min_angle)
@@ -216,7 +215,7 @@ class AgentHandler:
             dist_to_traffic_light=red_light_distance,
             dist_to_vehicle=vehicle_front_distance,
             dist_to_pedestrian=pedestrian_front_distance,
-            ego_vehicle_location=from_carla_location(self.player.get_location()),
+            transform=from_carla_transform(self.player.get_transform()),
         )
 
     def distance_to_closest_vehicle(self, vehicle_list: List[Any]) -> float:
