@@ -111,7 +111,7 @@ class CameraManager:
         def set_lidar_data(data):
             self.lidar_data = from_carla_lidar(data)
 
-        if lidar_config is not None:
+        if lidar_config is not None and lidar_config["enabled"]:
             bp = bp_library.find("sensor.lidar.ray_cast")
             bp.set_attribute("channels", f"{lidar_config['channels']}")
             bp.set_attribute("range", f"{lidar_config['range']}")

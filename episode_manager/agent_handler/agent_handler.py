@@ -60,25 +60,16 @@ class HUD:
 class AgentHandler:
     def __init__(
         self,
-        carla_world: carla.World,
+        world: carla.World,
         car_configuration: CarConfiguration,
         enable_third_person_view: bool = False,
     ):
-        self.world = carla_world
+        self.world = world
         self.config = car_configuration
         self.enable_third_person_view = enable_third_person_view
 
         self.stopped = True
 
-        try:
-            self.map = self.world.get_map()
-        except RuntimeError as error:
-            print("RuntimeError: {}".format(error))
-            print("  The server could not send the OpenDRIVE (.xodr) file:")
-            print(
-                "  Make sure it exists, has the same name of your town, and is correct."
-            )
-            sys.exit(1)
         self.player = None
         self.collision_sensor = None
         self.lane_invasion_sensor = None
@@ -91,6 +82,17 @@ class AgentHandler:
 
     def restart(self):
         print("RESTARTING")
+
+        try:
+            self.map = self.world.get_map()
+        except RuntimeError as error:
+            print("RuntimeError: {}".format(error))
+            print("  The server could not send the OpenDRIVE (.xodr) file:")
+            print(
+                "  Make sure it exists, has the same name of your town, and is correct."
+            )
+            sys.exit(1)
+
         if not self.stopped:
             self.stop()
         self.player = None
@@ -125,7 +127,6 @@ class AgentHandler:
         )
         actor_type = get_actor_display_name(self.player)
         self.hud.notification(actor_type)
-        self.world.tick()
 
         self.stopped = False
 

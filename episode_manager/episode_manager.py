@@ -32,7 +32,7 @@ from episode_manager.scenario_handler import ScenarioHandler
 @dataclass
 class EpisodeManagerConfiguration:
     port: int = 2000
-    traffic_manager_port: int = 2001
+    traffic_manager_port: int = 8000
     host: str = "127.0.0.1"
     render_server: bool = False
     render_client: bool = False
@@ -43,20 +43,20 @@ class EpisodeManagerConfiguration:
             {
                 "height": 400,
                 "width": 400,
-                "fov": 120,
+                "fov": 103,
                 "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
             },
             {
                 "height": 400,
                 "width": 400,
-                "fov": 120,
+                "fov": 103,
                 "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
             },
             {
                 "height": 400,
                 "width": 400,
-                "fov": 120,
-                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
+                "fov": 103,
+                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
             },
         ],
         {
@@ -97,11 +97,11 @@ class EpisodeManager:
         if config.render_client:
             self.world_renderer = WorldStateRenderer()
 
-        if agent_handler is None:
-            self.agent_handler = setup_agent_handler(config)
-
         if scenario_handler is None:
             self.scenario_handler = setup_scenario_handler(config)
+
+        if agent_handler is None:
+            self.agent_handler = setup_agent_handler(config)
 
         def get_episodes(training_type: TrainingType) -> List[EpisodeFiles]:
             routes: List[EpisodeFiles] = []
@@ -122,10 +122,14 @@ class EpisodeManager:
 
         return
 
-    def start_episode(self) -> WorldState:
+    def start_episode(self, town="Town03") -> WorldState:
         """
         Starts a new route in the simulator based on the provided configurations
         """
+
+        if not self.stopped:
+            raise Exception("Episode has already started")
+
         self.stopped = False
         file = self.routes[Random().randint(0, len(self.routes) - 1)]
         tree = ET.parse(file.route)
@@ -133,8 +137,12 @@ class EpisodeManager:
         # pick random id from route
         ids: List[str] = []
         for route in tree.iter("route"):
-            ids.append(route.attrib["id"])
-        id = ids[Random().randint(0, len(ids) - 1)]
+            if route.attrib["town"] == town:
+                ids.append(route.attrib["id"])
+
+        rnd_index = Random().randint(0, len(ids) - 1)
+        id = ids[rnd_index]
+        id = "28"
 
         self.scenario_handler.start_episode(
             file.route,
@@ -143,7 +151,7 @@ class EpisodeManager:
         )
 
         self.agent_handler.restart()
-        self.agent_handler.apply_control(Action(0, 0, False, 0))
+
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
 
@@ -159,7 +167,6 @@ class EpisodeManager:
 
         self.agent_handler.apply_control(ego_vehicle_action)
         scenario_state = self.scenario_handler.tick()
-
         agent_state = self.agent_handler.read_world_state(scenario_state)
 
         world_state: WorldState = WorldState(
@@ -181,21 +188,14 @@ class EpisodeManager:
             self.agent_handler.stop()
             self.scenario_handler.stop_episode()
             self.stopped = True
+        else:
+            print("Episode has already stopped")
         return
 
 
 def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
     client = carla.Client(config.host, config.port)
-    client.set_timeout(20.0)
     sim_world = client.get_world()
-
-    # Disable rendering if configured
-    settings = sim_world.get_settings()
-    if not config.render_server:
-        settings.no_rendering_mode = True
-    settings.fixed_delta_seconds = 1 / config.car_config.carla_fps
-
-    sim_world.apply_settings(settings)
 
     agent_handler = AgentHandler(
         sim_world, config.car_config, enable_third_person_view=config.render_client
@@ -210,4 +210,5 @@ def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandl
         config.traffic_manager_port,
         carla_fps=config.car_config.carla_fps,
     )
+
     return scenario_handler
