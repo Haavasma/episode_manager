@@ -93,6 +93,7 @@ class EpisodeManager:
         self.agent_handler = agent_handler
         self.world_renderer = None
         self.stopped = True
+        self.town = ""
 
         if config.render_client:
             self.world_renderer = WorldStateRenderer()
@@ -127,6 +128,12 @@ class EpisodeManager:
         Starts a new route in the simulator based on the provided configurations
         """
 
+        reload_world = True
+        if self.town == town:
+            reload_world = False
+
+        self.town = town
+
         if not self.stopped:
             raise Exception("Episode has already started")
 
@@ -142,12 +149,12 @@ class EpisodeManager:
 
         rnd_index = Random().randint(0, len(ids) - 1)
         id = ids[rnd_index]
-        id = "28"
 
         self.scenario_handler.start_episode(
             file.route,
             file.scenario,
             id,
+            reload_world=reload_world,
         )
 
         self.agent_handler.restart()

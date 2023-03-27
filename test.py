@@ -34,7 +34,7 @@ def main():
     for _ in range(10):
         fpses.put(0)
 
-    for i in range(10):
+    for i in range(50):
         state = manager.start_episode()
         for j in range(500):
             start = time.time()
