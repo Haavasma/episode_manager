@@ -46,9 +46,7 @@ def decrease(shared_value):
 
 
 def set_value(shared_value, value):
-    print("SETTING VALUE")
     with shared_value.get_lock():
-        print("SET VALUE TO", value)
         shared_value.value = value
 
 
@@ -135,10 +133,8 @@ class ScenarioHandler:
             scenario_runner.manager = manager
             scenario_runner.run()
 
-            print("DESTROYING SCENARIO RUNNER")
             scenario_runner.destroy()
             del scenario_runner
-            print("DESTROYED SCENARIO RUNNER")
 
         self.runner_process = mp.Process(
             target=setup_and_run_scenario,
@@ -157,7 +153,6 @@ class ScenarioHandler:
 
         start = time.time()
 
-        print("WAITING FOR SCENARIO TO START")
         set_value(self.tick_value, 0)
 
         while not get_value(self.scenario_started):
@@ -183,9 +178,6 @@ class ScenarioHandler:
         ]
 
         self._global_plan = [gps_route[x] for x in ds_ids]
-
-        self._global_plan_world_coord = []
-        self._global_plan = []
 
         return self.tick()
 
@@ -262,7 +254,6 @@ class ScenarioManagerControlled(ScenarioManager):
                     self._tick_scenario(timestamp)
 
             if get_value(self.tick_value) == -1:
-                print("SCENARIO WAS STOPPED")
                 self._running = False
 
         stop(self.tick_value)
