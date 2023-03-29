@@ -5,6 +5,7 @@ from multiprocessing.sharedctypes import SynchronizedBase
 import pathlib
 from queue import Queue
 import threading
+import uuid
 import time
 from typing import Dict, List, Optional
 from typing_extensions import override
@@ -139,7 +140,7 @@ class ScenarioHandler:
                 trafficManagerSeed="0",
                 waitForEgo=False,
                 record="",
-                outputDir=f"./output/{int(time.time())}",
+                outputDir=f"./output/{int(time.time())}_{uuid.uuid4().int}",
                 junit=True,
                 json=True,
                 file=True,
