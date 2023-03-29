@@ -147,6 +147,9 @@ class EpisodeManager:
             if route.attrib["town"] == town:
                 ids.append(route.attrib["id"])
 
+        if len(ids) == 0:
+            raise Exception("No route found for town: " + town)
+
         rnd_index = Random().randint(0, len(ids) - 1)
         id = ids[rnd_index]
 
