@@ -56,10 +56,6 @@ def get_value(shared_value) -> int:
         return shared_value.value
 
 
-tick_queue = 0
-scenario_started = False
-
-
 def runner_loop(
     args,
     carla_fps: int,
@@ -197,19 +193,26 @@ class ScenarioHandler:
         if self._runner_thread is None:
             raise RuntimeError("Scenario runner thread not started")
 
+        if not get_value(self._scenario_started):
+            return ScenarioState(
+                global_plan=self._global_plan,
+                global_plan_world_coord=self._global_plan_world_coord,
+                done=True,
+            )
+
         tick(self._tick_value)
 
         while True:
             if get_value(self._tick_value) == 0:
                 break
 
-            if not self._runner_thread.is_alive():
+            if not get_value(self._scenario_started):
                 break
 
         return ScenarioState(
             global_plan=self._global_plan,
             global_plan_world_coord=self._global_plan_world_coord,
-            done=not self._runner_thread.is_alive(),
+            done=not get_value(self._scenario_started),
         )
 
     def stop_episode(self):
@@ -292,9 +295,8 @@ class ScenarioManagerControlled(ScenarioManager):
             if get_value(self.tick_value) == -1:
                 self._running = False
 
-        stop(self.tick_value)
-
         set_value(self.scenario_started, False)
+        stop(self.tick_value)
 
         self.cleanup()
 

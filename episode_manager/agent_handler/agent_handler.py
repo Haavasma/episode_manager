@@ -1,3 +1,4 @@
+from collections import defaultdict
 import math
 import sys
 import time
@@ -216,6 +217,9 @@ class AgentHandler:
             dist_to_traffic_light=red_light_distance,
             dist_to_vehicle=vehicle_front_distance,
             dist_to_pedestrian=pedestrian_front_distance,
+            collision_history=self.collision_sensor.get_collision_history()
+            if self.collision_sensor is not None
+            else defaultdict(),
             transform=from_carla_transform(self.player.get_transform()),
         )
 
