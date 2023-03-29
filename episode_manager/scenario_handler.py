@@ -1,26 +1,21 @@
 from argparse import Namespace
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
-from multiprocessing.managers import ListProxy
 from multiprocessing.sharedctypes import SynchronizedBase
 import pathlib
+from queue import Queue
 import threading
 import time
-from typing import Any, Dict, List
+from typing import Dict, List, Optional
 from typing_extensions import override
-from scenario_runner import ScenarioManager, ScenarioRunner
-import numpy as np
-from srunner.autoagents.agent_wrapper import AgentWrapper
+from scenario_runner import RouteParser, ScenarioManager, ScenarioRunner
 from srunner.scenariomanager.timer import GameTime
-
-import time
 
 import py_trees
 
 import carla
 
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.watchdog import Watchdog
 from srunner.scenarios.route_scenario import interpolate_trajectory
 from srunner.tools.route_manipulation import downsample_route
@@ -60,7 +55,46 @@ def get_value(shared_value) -> int:
         return shared_value.value
 
 
+tick_queue = 0
 scenario_started = False
+
+
+def runner_loop(
+    args,
+    carla_fps: int,
+    tick_value: SynchronizedBase,
+    scenario_started: SynchronizedBase,
+    trajectory: List,
+    route_queue: Queue,
+):
+    if not pathlib.Path(args.outputDir).exists():
+        pathlib.Path(args.outputDir).mkdir(parents=True)
+
+    manager = ScenarioManagerControlled(
+        tick_value,
+        scenario_started,
+        trajectory,
+        args.debug,
+        args.sync,
+        args.timeout,
+    )
+
+    scenario_runner = ScenarioRunnerControlled(args, manager)
+
+    scenario_runner.frame_rate = carla_fps
+
+    scenario_runner.manager = manager
+
+    while True:
+        route_file, scenario_file, route_id = route_queue.get()
+        route_configs = RouteParser.parse_routes_file(
+            route_file, scenario_file, route_id
+        )
+
+        assert len(route_configs) == 1
+
+        scenario_runner._load_and_run_scenario(route_configs[0])
+        scenario_runner._cleanup()
 
 
 @dataclass
@@ -73,6 +107,11 @@ class ScenarioHandler:
     port: int
     traffic_manager_port: int
     carla_fps: int = 10
+    _runner_thread: Optional[threading.Thread] = None
+    _route_queue: Queue = field(default_factory=lambda: Queue())
+    _tick_value = mp.Value("i", 0)
+    _scenario_started = mp.Value("b", False)
+    _trajectory: List = field(default_factory=lambda: [])
 
     def start_episode(
         self,
@@ -83,88 +122,59 @@ class ScenarioHandler:
     ):
 
         timeout = 60
-        args: Namespace = Namespace(
-            route=[route_file, scenario_file, route_id],
-            sync=True,
-            port=self.port,
-            timeout=f"{timeout}",
-            host=self.host,
-            agent=None,
-            debug=False,
-            openscenario=None,
-            repetitions=1,
-            reloadWorld=True,
-            trafficManagerPort=self.traffic_manager_port,
-            trafficManagerSeed="0",
-            waitForEgo=False,
-            record="",
-            outputDir=f"./output/{int(time.time())}",
-            junit=True,
-            json=True,
-            file=True,
-            output=True,
-        )
 
-        self.tick_value = mp.Value("i", 0)
-        self.scenario_started = mp.Value("b", False)
-
-        mp_manager = mp.Manager()
-        self.trajectory = mp_manager.list([])
-
-        def setup_and_run_scenario(
-            args, carla_fps, tick_value, scenario_started, trajectory: ListProxy
-        ):
-            if not pathlib.Path(args.outputDir).exists():
-                pathlib.Path(args.outputDir).mkdir(parents=True)
-
-            scenario_runner = ScenarioRunner(args)
-
-            scenario_runner.frame_rate = carla_fps
-
-            manager = ScenarioManagerControlled(
-                tick_value,
-                scenario_started,
-                trajectory,
-                args.debug,
-                args.sync,
-                args.timeout,
+        if self._runner_thread is None:
+            args: Namespace = Namespace(
+                route=[route_file, scenario_file, route_id],
+                sync=True,
+                port=self.port,
+                timeout=f"{timeout}",
+                host=self.host,
+                agent=None,
+                debug=False,
+                openscenario=None,
+                repetitions=1,
+                reloadWorld=True,
+                trafficManagerPort=self.traffic_manager_port,
+                trafficManagerSeed="0",
+                waitForEgo=False,
+                record="",
+                outputDir=f"./output/{int(time.time())}",
+                junit=True,
+                json=True,
+                file=True,
+                output=True,
             )
+            self._runner_thread = threading.Thread(
+                target=runner_loop,
+                args=(
+                    args,
+                    self.carla_fps,
+                    self._tick_value,
+                    self._scenario_started,
+                    self._trajectory,
+                    self._route_queue,
+                ),
+            )
+            self._runner_thread.start()
 
-            scenario_runner.manager = manager
-            scenario_runner.run()
-
-            scenario_runner.destroy()
-            del scenario_runner
-
-        self.runner_process = mp.Process(
-            target=setup_and_run_scenario,
-            args=(
-                args,
-                self.carla_fps,
-                self.tick_value,
-                self.scenario_started,
-                self.trajectory,
-            ),
-        )
-
-        self.runner_process.start()
-        client = carla.Client(self.host, self.port)
-        CarlaDataProvider.set_world(client.get_world())
+        self._route_queue.put((route_file, scenario_file, route_id))
 
         start = time.time()
 
-        set_value(self.tick_value, 0)
+        set_value(self._tick_value, 0)
+        set_value(self._scenario_started, False)
 
-        while not get_value(self.scenario_started):
+        while not get_value(self._scenario_started):
             if (start + timeout) < time.time():
-                stop(self.tick_value)
+                stop(self._tick_value)
                 raise TimeoutError("Waiting for scenario to set up timed out")
 
-            if not self.runner_process.is_alive():
+            if not self._runner_thread.is_alive():
                 raise RuntimeError("Scenario runner thread died")
             pass
 
-        trajectory = [dict_to_carla_location(x) for x in self.trajectory]
+        trajectory = [dict_to_carla_location(x) for x in self._trajectory]
 
         # set up global plan for the scenario (gps and world coordinates)
         gps_route, route = interpolate_trajectory(trajectory)
@@ -183,30 +193,55 @@ class ScenarioHandler:
 
     def tick(self) -> ScenarioState:
         # wait for all ticks on server to be processed
-        tick(self.tick_value)
+        if self._runner_thread is None:
+            raise RuntimeError("Scenario runner thread not started")
+
+        tick(self._tick_value)
 
         while True:
-            if get_value(self.tick_value) == 0:
+            if get_value(self._tick_value) == 0:
                 break
 
-            if not self.runner_process.is_alive():
+            if not self._runner_thread.is_alive():
                 break
 
         return ScenarioState(
             global_plan=self._global_plan,
             global_plan_world_coord=self._global_plan_world_coord,
-            done=not self.runner_process.is_alive(),
+            done=not self._runner_thread.is_alive(),
         )
 
     def stop_episode(self):
         """
         Stop the scenario runner loop
         """
-        stop(self.tick_value)
+        stop(self._tick_value)
 
         # wait for scenario runner to stop
-        while self.runner_process.is_alive():
+        while get_value(self._scenario_started):
             pass
+
+
+class ScenarioRunnerControlled(ScenarioRunner):
+    @override
+    def __init__(self, args, manager: ScenarioManager):
+        """
+        Setup CARLA client and world
+        Setup ScenarioManager
+        """
+        self._args = args
+
+        if args.timeout:
+            self.client_timeout = float(args.timeout)
+
+        self.client = carla.Client(args.host, int(args.port))
+        self.client.set_timeout(self.client_timeout)
+
+        self.manager = manager
+
+        # Create signal handler for SIGINT
+        self._shutdown_requested = False
+        self._start_wall_time = datetime.datetime.now()
 
 
 class ScenarioManagerControlled(ScenarioManager):
@@ -214,7 +249,7 @@ class ScenarioManagerControlled(ScenarioManager):
         self,
         tick_value: SynchronizedBase,
         scenario_started: SynchronizedBase,
-        trajectory: ListProxy,
+        trajectory: List,
         debug,
         sync,
         timeout,
