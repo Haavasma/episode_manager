@@ -205,6 +205,7 @@ class EpisodeManager:
 
 def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
     client = carla.Client(config.host, config.port)
+    client.set_timeout(60)
     sim_world = client.get_world()
 
     agent_handler = AgentHandler(
