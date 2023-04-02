@@ -84,13 +84,21 @@ def runner_loop(
 
     while True:
         route_file, scenario_file, route_id = route_queue.get()
+        if route_file == "stop":
+            break
+
         route_configs = RouteParser.parse_routes_file(
             route_file, scenario_file, route_id
         )
 
         assert len(route_configs) == 1
 
-        scenario_runner._load_and_run_scenario(route_configs[0])
+        try:
+            scenario_runner._load_and_run_scenario(route_configs[0])
+        except Exception as e:
+            print("SOMETHING WENT WRONG DURING SCENARIO RUN, EXITING LOOP")
+            print(e)
+            return
         scenario_runner._cleanup()
 
 
@@ -117,43 +125,9 @@ class ScenarioHandler:
         route_id: str,
         reload_world: bool = True,
     ):
-
-        timeout = 60
-
+        timeout = 30
         if self._runner_thread is None:
-            args: Namespace = Namespace(
-                route=[route_file, scenario_file, route_id],
-                sync=True,
-                port=self.port,
-                timeout=f"{timeout}",
-                host=self.host,
-                agent=None,
-                debug=False,
-                openscenario=None,
-                repetitions=1,
-                reloadWorld=True,
-                trafficManagerPort=self.traffic_manager_port,
-                trafficManagerSeed="0",
-                waitForEgo=False,
-                record="",
-                outputDir=f"./output/{int(time.time())}_{uuid.uuid4().int}",
-                junit=True,
-                json=True,
-                file=True,
-                output=True,
-            )
-            self._runner_thread = threading.Thread(
-                target=runner_loop,
-                args=(
-                    args,
-                    self.carla_fps,
-                    self._tick_value,
-                    self._scenario_started,
-                    self._trajectory,
-                    self._route_queue,
-                ),
-            )
-            self._runner_thread.start()
+            self.start_runner_thread(route_file, scenario_file, route_id)
 
         self._route_queue.put((route_file, scenario_file, route_id))
 
@@ -162,14 +136,25 @@ class ScenarioHandler:
         set_value(self._tick_value, 0)
         set_value(self._scenario_started, False)
 
-        while not get_value(self._scenario_started):
+        tries = 2
+        current_try = 0
+
+        while not get_value(self._scenario_started) and current_try < tries:
             if (start + timeout) < time.time():
                 stop(self._tick_value)
-                raise TimeoutError("Waiting for scenario to set up timed out")
+                self._route_queue.put(("stop", None, None))
+                self.start_runner_thread(route_file, scenario_file, route_id)
+                current_try += 1
+                print("Waiting for scenario to set up timed out, TRYING AGAIN")
+                self._route_queue.put((route_file, scenario_file, route_id))
+                start = time.time()
 
-            if not self._runner_thread.is_alive():
+            if self._runner_thread is not None and not self._runner_thread.is_alive():
                 raise RuntimeError("Scenario runner thread died")
             pass
+
+        if current_try >= tries:
+            raise RuntimeError("Scenario runner thread did not start")
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
 
@@ -188,6 +173,44 @@ class ScenarioHandler:
 
         return self.tick()
 
+    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60):
+        self._scenario_started = mp.Value("b", False)
+        self._tick_value = mp.Value("i", 0)
+        self._route_queue = Queue()
+        args: Namespace = Namespace(
+            route=[route_file, scenario_file, route_id],
+            sync=True,
+            port=self.port,
+            timeout=f"{timeout}",
+            host=self.host,
+            agent=None,
+            debug=False,
+            openscenario=None,
+            repetitions=1,
+            reloadWorld=True,
+            trafficManagerPort=self.traffic_manager_port,
+            trafficManagerSeed="0",
+            waitForEgo=False,
+            record="",
+            outputDir=f"./output/{int(time.time())}_{uuid.uuid4().int}",
+            junit=True,
+            json=True,
+            file=True,
+            output=True,
+        )
+        self._runner_thread = threading.Thread(
+            target=runner_loop,
+            args=(
+                args,
+                self.carla_fps,
+                self._tick_value,
+                self._scenario_started,
+                self._trajectory,
+                self._route_queue,
+            ),
+        )
+        self._runner_thread.start()
+
     def tick(self) -> ScenarioState:
         # wait for all ticks on server to be processed
         if self._runner_thread is None:
@@ -201,7 +224,6 @@ class ScenarioHandler:
             )
 
         tick(self._tick_value)
-
         while True:
             if get_value(self._tick_value) == 0:
                 break
@@ -238,6 +260,7 @@ class ScenarioRunnerControlled(ScenarioRunner):
         if args.timeout:
             self.client_timeout = float(args.timeout)
 
+        print("SETTING UP NEW CLIENT")
         self.client = carla.Client(args.host, int(args.port))
         self.client.set_timeout(self.client_timeout)
 
