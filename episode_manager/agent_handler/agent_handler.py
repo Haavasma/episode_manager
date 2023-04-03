@@ -81,8 +81,9 @@ class AgentHandler:
         self.recording_enabled = False
         self.recording_start = 0
 
-    def restart(self):
+    def restart(self, host: str, port: int):
         print("RESTARTING")
+        self.world = carla.Client(host, port).get_world()
 
         try:
             self.map = self.world.get_map()

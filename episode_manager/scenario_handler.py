@@ -146,6 +146,7 @@ class ScenarioHandler:
                 self.start_runner_thread(route_file, scenario_file, route_id)
                 current_try += 1
                 print("Waiting for scenario to set up timed out, TRYING AGAIN")
+                print("CURRENT TIME: ", time.time())
                 self._route_queue.put((route_file, scenario_file, route_id))
                 start = time.time()
 
@@ -173,7 +174,7 @@ class ScenarioHandler:
 
         return self.tick()
 
-    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60):
+    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=30):
         self._scenario_started = mp.Value("b", False)
         self._tick_value = mp.Value("i", 0)
         self._route_queue = Queue()
