@@ -160,7 +160,7 @@ class EpisodeManager:
             reload_world=reload_world,
         )
 
-        self.agent_handler.restart(host=self.config.host, port=self.config.port)
+        self.agent_handler.restart()
 
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
