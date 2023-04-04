@@ -128,10 +128,6 @@ class EpisodeManager:
         Starts a new route in the simulator based on the provided configurations
         """
 
-        reload_world = True
-        if self.town == town:
-            reload_world = False
-
         self.town = town
 
         if not self.stopped:
@@ -157,7 +153,6 @@ class EpisodeManager:
             file.route,
             file.scenario,
             id,
-            reload_world=reload_world,
         )
 
         self.agent_handler.restart()

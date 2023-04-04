@@ -24,43 +24,18 @@ from episode_manager.agent_handler.models.transform import from_carla_transform
 
 from episode_manager.models.world_state import ScenarioState
 
-import multiprocessing as mp
-
 
 # Backhanded solution to injecting information
 # to the scenario runner and sending messages across threads
 
 
-def tick(shared_value):
-    with shared_value.get_lock():
-        shared_value.value += 1
-
-
-def decrease(shared_value):
-    with shared_value.get_lock():
-        shared_value.value -= 1
-
-
-def set_value(shared_value, value):
-    with shared_value.get_lock():
-        shared_value.value = value
-
-
-def stop(shared_value):
-    with shared_value.get_lock():
-        shared_value.value = -1
-
-
-def get_value(shared_value) -> int:
-    with shared_value.get_lock():
-        return shared_value.value
-
-
 def runner_loop(
     args,
     carla_fps: int,
-    tick_value: SynchronizedBase,
-    scenario_started: SynchronizedBase,
+    tick_queue: Queue,
+    ticked_event: threading.Event,
+    episode_started: threading.Event,
+    episode_stopped: threading.Event,
     trajectory: List,
     route_queue: Queue,
 ):
@@ -68,8 +43,9 @@ def runner_loop(
         pathlib.Path(args.outputDir).mkdir(parents=True)
 
     manager = ScenarioManagerControlled(
-        tick_value,
-        scenario_started,
+        tick_queue,
+        ticked_event,
+        episode_started,
         trajectory,
         args.debug,
         args.sync,
@@ -77,29 +53,20 @@ def runner_loop(
     )
 
     scenario_runner = ScenarioRunnerControlled(args, manager)
-
     scenario_runner.frame_rate = carla_fps
-
-    scenario_runner.manager = manager
 
     while True:
         route_file, scenario_file, route_id = route_queue.get()
-        if route_file == "stop":
-            break
+        scenario_runner.finished = False
 
         route_configs = RouteParser.parse_routes_file(
             route_file, scenario_file, route_id
         )
 
         assert len(route_configs) == 1
-
-        try:
-            scenario_runner._load_and_run_scenario(route_configs[0])
-        except Exception as e:
-            print("SOMETHING WENT WRONG DURING SCENARIO RUN, EXITING LOOP")
-            print(e)
-            return
+        scenario_runner._load_and_run_scenario(route_configs[0])
         scenario_runner._cleanup()
+        episode_stopped.set()
 
 
 @dataclass
@@ -114,68 +81,42 @@ class ScenarioHandler:
     carla_fps: int = 10
     _runner_thread: Optional[threading.Thread] = None
     _route_queue: Queue = field(default_factory=lambda: Queue())
-    _tick_value = mp.Value("i", 0)
-    _scenario_started = mp.Value("b", False)
+    _tick_queue: Queue = field(default_factory=lambda: Queue())
+    _ticked_event: threading.Event = field(default_factory=lambda: threading.Event())
     _trajectory: List = field(default_factory=lambda: [])
+    _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
+    _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
 
     def start_episode(
         self,
         route_file: pathlib.Path,
         scenario_file: pathlib.Path,
         route_id: str,
-        reload_world: bool = True,
     ):
-        timeout = 60
+        self._episode_started.clear()
+        self._episode_stopped.clear()
+
         if self._runner_thread is None:
             self.start_runner_thread(route_file, scenario_file, route_id)
 
         self._route_queue.put((route_file, scenario_file, route_id))
-
-        start = time.time()
-
-        set_value(self._tick_value, 0)
-        set_value(self._scenario_started, False)
-
-        tries = 2
-        current_try = 0
-
-        while not get_value(self._scenario_started) and current_try < tries:
-            if (start + timeout) < time.time():
-                stop(self._tick_value)
-                self._route_queue.put(("stop", None, None))
-                self.start_runner_thread(route_file, scenario_file, route_id)
-                current_try += 1
-                print("Waiting for scenario to set up timed out, TRYING AGAIN")
-                print("CURRENT TIME: ", time.time())
-                self._route_queue.put((route_file, scenario_file, route_id))
-                start = time.time()
-
-            if self._runner_thread is not None and not self._runner_thread.is_alive():
-                raise RuntimeError("Scenario runner thread died")
-            pass
-
-        if current_try >= tries:
-            raise RuntimeError("Scenario runner thread did not start")
+        print("WAITING FOR EPISODE TO START")
+        self._episode_started.wait()
+        print("EPISODE STARTED")
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
-
         gps_route, route = interpolate_trajectory(trajectory)
-
         ds_ids = downsample_route(route, 1)
-
         global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
         self._global_plan_world_coord = [
             (from_carla_transform(point[0]), point[1])
             for point in global_plan_world_coord
         ]
-
         self._global_plan = [gps_route[x] for x in ds_ids]
 
         return self.tick()
 
     def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60):
-        self._scenario_started = mp.Value("b", False)
-        self._tick_value = mp.Value("i", 0)
         self._route_queue = Queue()
         args: Namespace = Namespace(
             route=[route_file, scenario_file, route_id],
@@ -203,8 +144,10 @@ class ScenarioHandler:
             args=(
                 args,
                 self.carla_fps,
-                self._tick_value,
-                self._scenario_started,
+                self._tick_queue,
+                self._ticked_event,
+                self._episode_started,
+                self._episode_stopped,
                 self._trajectory,
                 self._route_queue,
             ),
@@ -216,36 +159,23 @@ class ScenarioHandler:
         if self._runner_thread is None:
             raise RuntimeError("Scenario runner thread not started")
 
-        if not get_value(self._scenario_started):
-            return ScenarioState(
-                global_plan=self._global_plan,
-                global_plan_world_coord=self._global_plan_world_coord,
-                done=True,
-            )
+        self._tick_queue.put("tick")
 
-        tick(self._tick_value)
-        while True:
-            if get_value(self._tick_value) == 0:
-                break
-
-            if not get_value(self._scenario_started):
-                break
+        self._ticked_event.wait()
+        self._ticked_event.clear()
 
         return ScenarioState(
             global_plan=self._global_plan,
             global_plan_world_coord=self._global_plan_world_coord,
-            done=not get_value(self._scenario_started),
+            done=self._episode_stopped.is_set(),
         )
 
     def stop_episode(self):
         """
         Stop the scenario runner loop
         """
-        stop(self._tick_value)
-
-        # wait for scenario runner to stop
-        while get_value(self._scenario_started):
-            pass
+        self._tick_queue.put("stop")
+        self._episode_stopped.wait()
 
 
 class ScenarioRunnerControlled(ScenarioRunner):
@@ -274,15 +204,17 @@ class ScenarioRunnerControlled(ScenarioRunner):
 class ScenarioManagerControlled(ScenarioManager):
     def __init__(
         self,
-        tick_value: SynchronizedBase,
-        scenario_started: SynchronizedBase,
+        tick_queue: Queue,
+        ticked_event: threading.Event,
+        episode_started: threading.Event,
         trajectory: List,
         debug,
         sync,
         timeout,
     ):
-        self.tick_value = tick_value
-        self.scenario_started = scenario_started
+        self.tick_queue = tick_queue
+        self.ticked_event = ticked_event
+        self.episode_started = episode_started
         self.trajectory = trajectory
 
         super().__init__(debug, sync, timeout)
@@ -297,32 +229,31 @@ class ScenarioManagerControlled(ScenarioManager):
         self._watchdog.start()
         self._running = True
 
+        # clear trajectory
         self.trajectory.clear()
-        print("TRAJECTORY LENGTH: ", len(self.trajectory))
 
+        # add waypoints to trajectory
         for waypoint in self.scenario_class.config.trajectory:
             self.trajectory.append(carla_location_to_dict(waypoint))
 
         # message that scenario has started
-        set_value(self.scenario_started, True)
-
+        self.episode_started.set()
         while self._running:
-            if get_value(self.tick_value) > 0:
-                decrease(self.tick_value)
-                timestamp = None
-                world = CarlaDataProvider.get_world()
-                if world:
-                    snapshot = world.get_snapshot()
-                    if snapshot:
-                        timestamp = snapshot.timestamp
-                if timestamp:
-                    self._tick_scenario(timestamp)
-
-            if get_value(self.tick_value) == -1:
+            # wait for ticks
+            message = self.tick_queue.get()
+            if message == "stop":
                 self._running = False
 
-        set_value(self.scenario_started, False)
-        stop(self.tick_value)
+            timestamp = None
+            world = CarlaDataProvider.get_world()
+            if world:
+                snapshot = world.get_snapshot()
+                if snapshot:
+                    timestamp = snapshot.timestamp
+            if timestamp:
+                self._tick_scenario(timestamp)
+                # message that tick has been processed
+                self.ticked_event.set()
 
         self.cleanup()
 
@@ -333,8 +264,6 @@ class ScenarioManagerControlled(ScenarioManager):
         self.scenario_duration_game = end_game_time - start_game_time
 
         if self.scenario_tree.status == py_trees.common.Status.FAILURE:
-            stop(self.tick_value)
-
             print("ScenarioManager: Terminated due to failure")
 
 
