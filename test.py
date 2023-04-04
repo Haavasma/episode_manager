@@ -23,10 +23,8 @@ def main():
 
     config.car_config.lidar["enabled"] = False
 
-    config.port = 2006
-    config.traffic_manager_port = 8002
-
-    config.car_config.cameras = []
+    config.port = 2000
+    config.traffic_manager_port = 8000
     config.car_config.lidar["enabled"] = False
 
     # for camera in config.car_config.cameras:
