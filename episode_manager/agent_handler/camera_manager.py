@@ -180,6 +180,7 @@ class CameraManager:
         Stop the sensors
         """
         for sensor in self.sensors:
+            print(f"Destroying sensor {sensor}")
             sensor.stop()
 
         return

@@ -26,6 +26,9 @@ def main():
     config.port = 2006
     config.traffic_manager_port = 8002
 
+    config.car_config.cameras = []
+    config.car_config.lidar["enabled"] = False
+
     # for camera in config.car_config.cameras:
     #     camera["width"] = 100
     #     camera["height"] = 100
@@ -39,7 +42,7 @@ def main():
 
     for i in range(50):
         state = manager.start_episode()
-        for j in range(50):
+        for j in range(500):
             start = time.time()
             print("\n")
 
@@ -67,9 +70,6 @@ def main():
             print(f"FPS: {sum(fpses.queue) / fpses.qsize()}")
 
         manager.stop_episode()
-        print("STOPPING EPISODE")
-        time.sleep(10)
-        print("WAIT OVER")
 
     print("ENDED EPISODES")
 

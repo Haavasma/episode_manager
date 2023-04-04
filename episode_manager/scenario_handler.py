@@ -125,7 +125,7 @@ class ScenarioHandler:
         route_id: str,
         reload_world: bool = True,
     ):
-        timeout = 30
+        timeout = 60
         if self._runner_thread is None:
             self.start_runner_thread(route_file, scenario_file, route_id)
 
@@ -159,7 +159,6 @@ class ScenarioHandler:
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
 
-        # set up global plan for the scenario (gps and world coordinates)
         gps_route, route = interpolate_trajectory(trajectory)
 
         ds_ids = downsample_route(route, 1)
@@ -174,7 +173,7 @@ class ScenarioHandler:
 
         return self.tick()
 
-    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=30):
+    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60):
         self._scenario_started = mp.Value("b", False)
         self._tick_value = mp.Value("i", 0)
         self._route_queue = Queue()
@@ -297,6 +296,9 @@ class ScenarioManagerControlled(ScenarioManager):
         self._watchdog = Watchdog(float(self._timeout))
         self._watchdog.start()
         self._running = True
+
+        self.trajectory.clear()
+        print("TRAJECTORY LENGTH: ", len(self.trajectory))
 
         for waypoint in self.scenario_class.config.trajectory:
             self.trajectory.append(carla_location_to_dict(waypoint))
