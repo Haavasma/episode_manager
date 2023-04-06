@@ -159,6 +159,7 @@ class ScenarioHandler:
         if self._runner_thread is None:
             raise RuntimeError("Scenario runner thread not started")
 
+        self._ticked_event.clear()
         self._tick_queue.put("tick")
 
         self._ticked_event.wait()
