@@ -3,7 +3,7 @@ import math
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional, Tuple
 
 import carla
 import numpy as np
@@ -18,6 +18,7 @@ from typing_extensions import override
 
 from episode_manager.agent_handler.camera_manager import CameraManager
 from episode_manager.agent_handler.models.transform import (
+    Transform,
     from_carla_transform,
 )
 from episode_manager.models.world_state import (
@@ -174,8 +175,12 @@ class AgentHandler:
         # DISTANCE TO CLOSEST FACING TRAFFIC LIGHT
 
         player_location = self.player.get_location()
+        map = self.world.get_map()
+        ego_lane_id = map.get_waypoint(player_location).lane_id
 
-        def get_distance(actors, condition: Callable[[Any], bool]) -> float:
+        def get_distance(
+            actors, condition: Callable[[carla.Actor, carla.Location], bool]
+        ) -> float:
             min_angle = 180.0
             result_distance = -1.0
             if len(actors) > 0:
@@ -190,18 +195,24 @@ class AgentHandler:
 
                     if (
                         magnitude < 80.0
-                        and angle < min(25.0, min_angle)
-                        and condition(actor)
+                        and angle < min(50.0, min_angle)
+                        and condition(actor, traffic_location)
                     ):
                         min_angle = angle
                         result_distance = float(magnitude)
+
             return result_distance
+
+        def check_light(actor, traffic_location):
+            # Check if lane id is the same as the ego vehicle
+
+            is_same_lane = map.get_waypoint(traffic_location).lane_id == ego_lane_id
+
+            return actor.state == carla.libcarla.TrafficLightState.Red and is_same_lane
 
         # DISTANCE TO CLOSEST FACING TRAFFIC LIGHT
         lights = actor_list.filter("*traffic_light*")
-        red_light_distance = get_distance(
-            lights, lambda light: light.state == carla.libcarla.TrafficLightState.Red
-        )
+        red_light_distance = get_distance(lights, check_light)
 
         # DISTANCE TO CLOSEST FACING VEHICLE TODO: rework to checking the lane instead
         vehicles = actor_list.filter("*vehicle*")
@@ -209,7 +220,8 @@ class AgentHandler:
 
         # DISTANCE TO CLOSEST FACING PEDESTRIAN
         pedestrians = actor_list.filter("*walker*")
-        pedestrian_front_distance = get_distance(pedestrians, lambda _: True)
+
+        pedestrian_front_distance = get_distance(pedestrians, lambda _, __: True)
 
         return PrivilegedScenarioData(
             dist_to_traffic_light=red_light_distance,

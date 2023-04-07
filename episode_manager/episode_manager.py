@@ -190,8 +190,8 @@ class EpisodeManager:
 
     def stop_episode(self):
         if not self.stopped:
-            self.scenario_handler.stop_episode()
             self.agent_handler.stop()
+            self.scenario_handler.stop_episode()
             self.stopped = True
         else:
             print("Episode has already stopped")
