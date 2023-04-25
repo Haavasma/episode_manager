@@ -2,8 +2,10 @@ from argparse import Namespace
 from dataclasses import dataclass, field
 import datetime
 from multiprocessing.sharedctypes import SynchronizedBase
+import os
 import pathlib
 from queue import Queue
+import sys
 import threading
 import uuid
 import time
@@ -86,6 +88,8 @@ class ScenarioHandler:
     _trajectory: List = field(default_factory=lambda: [])
     _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
+    _tick_timeout = 10.0
+    _episode_timeout = 30.0
 
     def start_episode(
         self,
@@ -97,11 +101,16 @@ class ScenarioHandler:
         self._episode_stopped.clear()
 
         if self._runner_thread is None:
-            self.start_runner_thread(route_file, scenario_file, route_id)
+            self.start_runner_thread(
+                route_file, scenario_file, route_id, self._episode_timeout
+            )
 
         self._route_queue.put((route_file, scenario_file, route_id))
         print("WAITING FOR EPISODE TO START")
-        self._episode_started.wait()
+        ok = self._episode_started.wait(timeout=self._episode_timeout)
+        if not ok:
+            print("Scenario runner did not start episode in time")
+            os._exit(1)
         print("EPISODE STARTED")
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
@@ -116,7 +125,7 @@ class ScenarioHandler:
 
         return self.tick()
 
-    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60):
+    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60.0):
         self._route_queue = Queue()
         args: Namespace = Namespace(
             route=[route_file, scenario_file, route_id],
@@ -162,7 +171,11 @@ class ScenarioHandler:
         self._ticked_event.clear()
         self._tick_queue.put("tick")
 
-        self._ticked_event.wait()
+        ok = self._ticked_event.wait(timeout=self._tick_timeout)
+        if not ok:
+            print("Scenario runner did not start episode in time")
+            os._exit(1)
+
         self._ticked_event.clear()
 
         return ScenarioState(
@@ -176,7 +189,10 @@ class ScenarioHandler:
         Stop the scenario runner loop
         """
         self._tick_queue.put("stop")
-        self._episode_stopped.wait()
+        ok = self._episode_stopped.wait(timeout=self._episode_timeout)
+        if not ok:
+            print("Scenario runner did not start episode in time")
+            os._exit(1)
 
 
 class ScenarioRunnerControlled(ScenarioRunner):
