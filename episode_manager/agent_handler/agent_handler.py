@@ -18,13 +18,10 @@ from typing_extensions import override
 
 from episode_manager.agent_handler.camera_manager import CameraManager
 from episode_manager.agent_handler.models.transform import (
-    Transform,
     from_carla_transform,
 )
 from episode_manager.models.world_state import (
     PrivilegedScenarioData,
-    ScenarioState,
-    VehicleState,
 )
 
 from .models import (
@@ -138,7 +135,7 @@ class AgentHandler:
 
         return
 
-    def read_world_state(self, scenario_state: ScenarioState) -> VehicleState:
+    def read_world_state(self):
         """
         Read the state of the world from the sensors of the vehicle
         """
@@ -154,19 +151,19 @@ class AgentHandler:
 
             sensor_data = self.camera_manager.get_sensor_data()
 
-            return VehicleState(
-                sensor_data=sensor_data,
-                speed=speed,
-                gps=gps,
-                compass=compass,
-                privileged=self._get_privileged_scenario_data(scenario_state),
-            )
+            return None
+
+            # return VehicleState(
+            #     sensor_data=sensor_data,
+            #     speed=speed,
+            #     gps=gps,
+            #     compass=compass,
+            #     privileged=self._get_privileged_scenario_data(),
+            # )
 
         raise Exception("Sensors not initialized")
 
-    def _get_privileged_scenario_data(
-        self, scenario_state: ScenarioState
-    ) -> PrivilegedScenarioData:
+    def _get_privileged_scenario_data(self) -> PrivilegedScenarioData:
         """
         Gathers privileged scenario data
         """

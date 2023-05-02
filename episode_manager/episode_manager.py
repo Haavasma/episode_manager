@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import pathlib
-from typing import List
+from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 import carla
 import os
@@ -37,35 +37,95 @@ class EpisodeManagerConfiguration:
     render_server: bool = False
     render_client: bool = False
     training_type: TrainingType = TrainingType.TRAINING
-    car_config: CarConfiguration = CarConfiguration(
-        "tesla",
-        [
+    carla_fps: int = 10
+    sensor_list: List[Dict] = field(
+        default_factory=lambda: [
             {
-                "height": 400,
-                "width": 400,
-                "fov": 103,
-                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
+                "type": "sensor.camera.rgb",
+                "x": 1.3,
+                "y": 0.0,
+                "z": 2.3,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "width": 800,
+                "height": 600,
+                "fov": 100,
+                "id": "rgb_front",
             },
             {
-                "height": 400,
-                "width": 400,
-                "fov": 103,
-                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
+                "type": "sensor.camera.rgb",
+                "x": -1.3,
+                "y": 0.0,
+                "z": 2.3,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 180.0,
+                "width": 800,
+                "height": 600,
+                "fov": 100,
+                "id": "rgb_rear",
             },
             {
-                "height": 400,
-                "width": 400,
-                "fov": 103,
-                "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
+                "type": "sensor.camera.rgb",
+                "x": 1.3,
+                "y": 0.0,
+                "z": 2.3,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": -60.0,
+                "width": 800,
+                "height": 600,
+                "fov": 100,
+                "id": "rgb_left",
             },
-        ],
-        {
-            "enabled": True,
-            "channels": 32,
-            "range": 5000,
-            "shape": (3, 256, 256),
-            "transform": Transform(Location(1.3, 0, 2.5), Rotation(0, -90, 0)),
-        },
+            {
+                "type": "sensor.camera.rgb",
+                "x": 1.3,
+                "y": 0.0,
+                "z": 2.3,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 60.0,
+                "width": 800,
+                "height": 600,
+                "fov": 100,
+                "id": "rgb_right",
+            },
+            {
+                "type": "sensor.lidar.ray_cast",
+                "x": 1.3,
+                "y": 0.0,
+                "z": 2.5,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "id": "lidar",
+            },
+            {
+                "type": "sensor.other.imu",
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "sensor_tick": 0.05,
+                "id": "imu",
+            },
+            {
+                "type": "sensor.other.gnss",
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
+                "sensor_tick": 0.01,
+                "id": "gps",
+            },
+            {"type": "sensor.speedometer", "reading_frequency": 20, "id": "speed"},
+        ]
     )
     route_directory: pathlib.Path = pathlib.Path(
         os.path.join(os.path.dirname(__file__), "routes")
@@ -84,13 +144,12 @@ class EpisodeManager:
     def __init__(
         self,
         config: EpisodeManagerConfiguration,
-        agent_handler: AgentHandler = None,
-        scenario_handler: ScenarioHandler = None,
+        # agent_handler: AgentHandler = None,
+        scenario_handler: Optional[ScenarioHandler] = None,
     ):
-
         self.config = config
         self.scenario_handler = scenario_handler
-        self.agent_handler = agent_handler
+        # self.agent_handler = agent_handler
         self.world_renderer = None
         self.stopped = True
         self.town = ""
@@ -101,8 +160,8 @@ class EpisodeManager:
         if scenario_handler is None:
             self.scenario_handler = setup_scenario_handler(config)
 
-        if agent_handler is None:
-            self.agent_handler = setup_agent_handler(config)
+        # if agent_handler is None:
+        #     self.agent_handler = setup_agent_handler(config)
 
         def get_episodes(training_type: TrainingType) -> List[EpisodeFiles]:
             routes: List[EpisodeFiles] = []
@@ -123,7 +182,7 @@ class EpisodeManager:
 
         return
 
-    def start_episode(self, town="Town03") -> WorldState:
+    def start_episode(self, town="Town03") -> Tuple[WorldState, List]:
         """
         Starts a new route in the simulator based on the provided configurations
         """
@@ -149,18 +208,16 @@ class EpisodeManager:
         rnd_index = Random().randint(0, len(ids) - 1)
         id = ids[rnd_index]
 
-        self.scenario_handler.start_episode(
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler is not initialized")
+
+        return_value = self.scenario_handler.start_episode(
             file.route,
             file.scenario,
             id,
         )
 
-        self.agent_handler.restart()
-
-        scenario_state = self.scenario_handler.tick()
-        agent_state = self.agent_handler.read_world_state(scenario_state)
-
-        return WorldState(ego_vehicle_state=agent_state, scenario_state=scenario_state)
+        return return_value
 
     def step(self, ego_vehicle_action: Action) -> WorldState:
         """
@@ -170,27 +227,29 @@ class EpisodeManager:
         if self.stopped:
             raise Exception("Episode has already stopped")
 
-        self.agent_handler.apply_control(ego_vehicle_action)
-        scenario_state = self.scenario_handler.tick()
-        agent_state = self.agent_handler.read_world_state(scenario_state)
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler is not initialized")
 
-        world_state: WorldState = WorldState(
-            ego_vehicle_state=agent_state,
-            scenario_state=scenario_state,
-        )
+        # self.agent_handler.apply_control(ego_vehicle_action)
+
+        world_state = self.scenario_handler.step(ego_vehicle_action)
+        # agent_state = self.agent_handler.read_world_state(scenario_state)
 
         # Render the world state with world_renderer
         if self.world_renderer:
             self.world_renderer.render(world_state)
 
-        if scenario_state.done:
+        if world_state.done:
             self.stop_episode()
 
         return world_state
 
     def stop_episode(self):
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler is not initialized")
+
         if not self.stopped:
-            self.agent_handler.stop()
+            # self.agent_handler.stop()
             self.scenario_handler.stop_episode()
             self.stopped = True
         else:
@@ -198,15 +257,15 @@ class EpisodeManager:
         return
 
 
-def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
-    client = carla.Client(config.host, config.port)
-    client.set_timeout(30)
-    sim_world = client.get_world()
-
-    agent_handler = AgentHandler(
-        sim_world, config.car_config, enable_third_person_view=config.render_client
-    )
-    return agent_handler
+# def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
+#     client = carla.Client(config.host, config.port)
+#     client.set_timeout(30)
+#     sim_world = client.get_world()
+#
+#     agent_handler = AgentHandler(
+#         sim_world, config.car_config, enable_third_person_view=config.render_client
+#     )
+#     return agent_handler
 
 
 def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandler:
@@ -214,7 +273,8 @@ def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandl
         config.host,
         config.port,
         config.traffic_manager_port,
-        carla_fps=config.car_config.carla_fps,
+        carla_fps=config.carla_fps,
+        sensor_list=config.sensor_list,
     )
 
     return scenario_handler

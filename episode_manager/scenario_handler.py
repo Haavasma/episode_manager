@@ -1,74 +1,54 @@
+import pathlib
 from argparse import Namespace
 from dataclasses import dataclass, field
-import datetime
-from multiprocessing.sharedctypes import SynchronizedBase
-import os
-import pathlib
-from queue import Queue
-import sys
-import threading
-import uuid
-import time
-from typing import Dict, List, Optional
-from typing_extensions import override
-from scenario_runner import RouteParser, ScenarioManager, ScenarioRunner
-from srunner.scenariomanager.timer import GameTime
-
-import py_trees
+from typing import Dict, List, Optional, Tuple
 
 import carla
+import numpy as np
+from leaderboard.autoagents import autonomous_agent
+from leaderboard.leaderboard_evaluator import LeaderboardEvaluator
+from leaderboard.utils.route_indexer import RouteIndexer
+from leaderboard.utils.statistics_manager import StatisticsManager
+from typing_extensions import override
 
-from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-from srunner.scenariomanager.watchdog import Watchdog
-from srunner.scenarios.route_scenario import interpolate_trajectory
-from srunner.tools.route_manipulation import downsample_route
-from episode_manager.agent_handler.models.transform import from_carla_transform
+from episode_manager.agent_handler.agent_handler import Action
+from episode_manager.models.world_state import WorldState
 
-from episode_manager.models.world_state import ScenarioState
+# TODO:
+# IMPLEMENT FOR LEADERBOARD_EVALUATOR
+# ROUTEINDEXER
+# AGENTWRAPPER
+# INJECT AGENT INSTANCE
+# PROFIT
 
 
 # Backhanded solution to injecting information
 # to the scenario runner and sending messages across threads
 
 
-def runner_loop(
-    args,
-    carla_fps: int,
-    tick_queue: Queue,
-    ticked_event: threading.Event,
-    episode_started: threading.Event,
-    episode_stopped: threading.Event,
-    trajectory: List,
-    route_queue: Queue,
-):
-    if not pathlib.Path(args.outputDir).exists():
-        pathlib.Path(args.outputDir).mkdir(parents=True)
+class DummyAgent(autonomous_agent.AutonomousAgent):
+    _sensors_list: Optional[List[Dict]] = None
 
-    manager = ScenarioManagerControlled(
-        tick_queue,
-        ticked_event,
-        episode_started,
-        trajectory,
-        args.debug,
-        args.sync,
-        args.timeout,
-    )
+    def setup(self, sensors: List[Dict]) -> bool:
+        self._sensors_list = sensors
 
-    scenario_runner = ScenarioRunnerControlled(args, manager)
-    scenario_runner.frame_rate = carla_fps
+        self.control = carla.VehicleControl(throttle=0, steer=0.0)
+        return True
 
-    while True:
-        route_file, scenario_file, route_id = route_queue.get()
-        scenario_runner.finished = False
+    def set_control(self, control: Action):
+        self.control = control.carla_vehicle_control()
+        return
 
-        route_configs = RouteParser.parse_routes_file(
-            route_file, scenario_file, route_id
-        )
+    def get_world_state(self) -> dict:
+        return self.sensor_interface.get_data()
 
-        assert len(route_configs) == 1
-        scenario_runner._load_and_run_scenario(route_configs[0])
-        scenario_runner._cleanup()
-        episode_stopped.set()
+    def run_step(self, input_data, timestamp):
+        return self.control
+
+    def sensors(self):
+        print("GETTING SENSORS")
+        print("SENSORS: ", self._sensors_list)
+        return self._sensors_list
 
 
 @dataclass
@@ -81,216 +61,143 @@ class ScenarioHandler:
     port: int
     traffic_manager_port: int
     carla_fps: int = 10
-    _runner_thread: Optional[threading.Thread] = None
-    _route_queue: Queue = field(default_factory=lambda: Queue())
-    _tick_queue: Queue = field(default_factory=lambda: Queue())
-    _ticked_event: threading.Event = field(default_factory=lambda: threading.Event())
-    _trajectory: List = field(default_factory=lambda: [])
-    _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
-    _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
-    _tick_timeout = 10.0
-    _episode_timeout = 30.0
+    sensor_list: List[Dict] = field(default_factory=lambda: [])
+
+    def __post_init__(self):
+        self._scenario_runner: Optional[ScenarioRunnerControlled] = None
 
     def start_episode(
         self,
         route_file: pathlib.Path,
         scenario_file: pathlib.Path,
         route_id: str,
-    ):
-        self._episode_started.clear()
-        self._episode_stopped.clear()
-
-        if self._runner_thread is None:
-            self.start_runner_thread(
-                route_file, scenario_file, route_id, self._episode_timeout
+    ) -> Tuple[WorldState, List]:
+        if self._scenario_runner is None:
+            self._scenario_runner = self.setup_scenario_runner(
+                route_file, scenario_file, route_id
             )
 
-        self._route_queue.put((route_file, scenario_file, route_id))
-        print("WAITING FOR EPISODE TO START")
-        ok = self._episode_started.wait(timeout=self._episode_timeout)
-        if not ok:
-            print("Scenario runner did not start episode in time")
-            os._exit(1)
-        print("EPISODE STARTED")
+        route_index = RouteIndexer(route_file, scenario_file, 1, route_id)
+        route_config = route_index.next()
 
-        trajectory = [dict_to_carla_location(x) for x in self._trajectory]
-        gps_route, route = interpolate_trajectory(trajectory)
-        ds_ids = downsample_route(route, 1)
-        global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
-        self._global_plan_world_coord = [
-            (from_carla_transform(point[0]), point[1])
-            for point in global_plan_world_coord
-        ]
-        self._global_plan = [gps_route[x] for x in ds_ids]
+        self._scenario_runner._load_and_run_scenario(
+            self.get_args(route_file, scenario_file, route_id),
+            route_config,
+        )
 
-        return self.tick()
+        world_state = self.step(Action(0, 1.0, False, 0.0))
 
-    def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60.0):
-        self._route_queue = Queue()
-        args: Namespace = Namespace(
-            route=[route_file, scenario_file, route_id],
+        if self._scenario_runner.agent_instance is None:
+            raise Exception("Agent instance is None")
+
+        if self._scenario_runner.agent_instance._global_plan is None:
+            raise Exception("Global plan is None")
+
+        return (
+            world_state,
+            self._scenario_runner.agent_instance._global_plan,
+        )
+
+    def setup_scenario_runner(self, route_file, scenario_file, route_id):
+        statistics_manager = StatisticsManager()
+        return ScenarioRunnerControlled(
+            self.get_args(route_file, scenario_file, route_id),
+            statistics_manager,
+            self.sensor_list,
+        )
+
+    def get_args(self, route_file, scenario_file, route_id, timeout=10.0):
+        output = (
+            pathlib.Path("./output/{int(time.time())}_{uuid.uuid4().int}")
+            .absolute()
+            .resolve()
+        )
+
+        pathlib.Path(output).mkdir(parents=True, exist_ok=True)
+
+        return Namespace(
             sync=True,
             port=self.port,
-            timeout=f"{timeout}",
+            timeout=timeout,
+            routes=route_file,
+            route_id=route_id,
+            scenarios=scenario_file,
             host=self.host,
-            agent=None,
+            agent=__file__,
+            agent_config="",
+            track="SENSORS",
+            checkpoint=str(output / "checkpoint.json"),
             debug=False,
             openscenario=None,
             repetitions=1,
             reloadWorld=True,
-            trafficManagerPort=self.traffic_manager_port,
-            trafficManagerSeed="0",
+            traffic_manager_port=self.traffic_manager_port,
+            traffic_manager_seed=0,
             waitForEgo=False,
             record="",
-            outputDir=f"./output/{int(time.time())}_{uuid.uuid4().int}",
+            outputDir=output,
             junit=True,
             json=True,
             file=True,
             output=True,
         )
-        self._runner_thread = threading.Thread(
-            target=runner_loop,
-            args=(
-                args,
-                self.carla_fps,
-                self._tick_queue,
-                self._ticked_event,
-                self._episode_started,
-                self._episode_stopped,
-                self._trajectory,
-                self._route_queue,
-            ),
-        )
-        self._runner_thread.start()
 
-    def tick(self) -> ScenarioState:
+    def step(self, action: Action) -> WorldState:
         # wait for all ticks on server to be processed
-        if self._runner_thread is None:
-            raise RuntimeError("Scenario runner thread not started")
+        if self._scenario_runner is None:
+            raise Exception("Scenario runner not initialized")
 
-        self._ticked_event.clear()
-        self._tick_queue.put("tick")
+        if self._scenario_runner.agent_instance is None:
+            raise Exception("Agent instance not initialized")
 
-        ok = self._ticked_event.wait(timeout=self._tick_timeout)
-        if not ok:
-            print("Scenario runner did not start episode in time")
-            os._exit(1)
+        self._scenario_runner.agent_instance.set_control(action)
+        self._scenario_runner.step()
 
-        self._ticked_event.clear()
+        input_data = self._scenario_runner.agent_instance.get_world_state()
 
-        return ScenarioState(
-            global_plan=self._global_plan,
-            global_plan_world_coord=self._global_plan_world_coord,
-            done=self._episode_stopped.is_set(),
+        return WorldState(
+            input_data=input_data,
+            done=not self._scenario_runner.manager._running,
+            privileged=None,
         )
 
     def stop_episode(self):
         """
         Stop the scenario runner loop
         """
-        self._tick_queue.put("stop")
-        ok = self._episode_stopped.wait(timeout=self._episode_timeout)
-        if not ok:
-            print("Scenario runner did not start episode in time")
-            os._exit(1)
+        if self._scenario_runner is None:
+            raise Exception("Scenario runner not initialized")
+
+        self._scenario_runner.stop()
 
 
-class ScenarioRunnerControlled(ScenarioRunner):
+def get_entry_point():
+    return "DummyAgent"
+
+
+class ScenarioRunnerControlled(LeaderboardEvaluator):
     @override
-    def __init__(self, args, manager: ScenarioManager):
+    def __init__(
+        self,
+        args,
+        statistics_manager: StatisticsManager,
+        sensor_list: List[Dict],
+        fps: float = 10,
+    ):
         """
         Setup CARLA client and world
         Setup ScenarioManager
         """
-        self._args = args
 
-        if args.timeout:
-            self.client_timeout = float(args.timeout)
+        self._sensor_list = sensor_list
+        self.agent_instance: Optional[DummyAgent] = None
+        self.frame_rate = fps
+        return super().__init__(args, statistics_manager)
 
-        print("SETTING UP NEW CLIENT")
-        self.client = carla.Client(args.host, int(args.port))
-        self.client.set_timeout(self.client_timeout)
+    def _load_and_run_scenario(self, args, config):
+        print("SENSOR_LIST: ", self._sensor_list)
 
-        self.manager = manager
+        self.agent_instance = DummyAgent(self._sensor_list)
+        config.agent = self.agent_instance
 
-        # Create signal handler for SIGINT
-        self._shutdown_requested = False
-        self._start_wall_time = datetime.datetime.now()
-
-
-class ScenarioManagerControlled(ScenarioManager):
-    def __init__(
-        self,
-        tick_queue: Queue,
-        ticked_event: threading.Event,
-        episode_started: threading.Event,
-        trajectory: List,
-        debug,
-        sync,
-        timeout,
-    ):
-        self.tick_queue = tick_queue
-        self.ticked_event = ticked_event
-        self.episode_started = episode_started
-        self.trajectory = trajectory
-
-        super().__init__(debug, sync, timeout)
-
-    @override
-    def run_scenario(self):
-        print("ScenarioManager: Running scenario {}".format(self.scenario_tree.name))
-        self.start_system_time = time.time()
-        start_game_time = GameTime.get_time()
-
-        self._watchdog = Watchdog(float(self._timeout))
-        self._watchdog.start()
-        self._running = True
-
-        # clear trajectory
-        self.trajectory.clear()
-
-        # add waypoints to trajectory
-        for waypoint in self.scenario_class.config.trajectory:
-            self.trajectory.append(carla_location_to_dict(waypoint))
-
-        # message that scenario has started
-        self.episode_started.set()
-        while self._running:
-            # wait for ticks
-            message = self.tick_queue.get()
-            if message == "stop":
-                self._running = False
-
-            timestamp = None
-            world = CarlaDataProvider.get_world()
-            if world:
-                snapshot = world.get_snapshot()
-                if snapshot:
-                    timestamp = snapshot.timestamp
-            if timestamp:
-                self._tick_scenario(timestamp)
-                # message that tick has been processed
-                self.ticked_event.set()
-
-        self.cleanup()
-
-        self.end_system_time = time.time()
-        end_game_time = GameTime.get_time()
-
-        self.scenario_duration_system = self.end_system_time - self.start_system_time
-        self.scenario_duration_game = end_game_time - start_game_time
-
-        if self.scenario_tree.status == py_trees.common.Status.FAILURE:
-            print("ScenarioManager: Terminated due to failure")
-
-
-def carla_location_to_dict(location: carla.Location) -> Dict[str, float]:
-    return {
-        "x": location.x,
-        "y": location.y,
-        "z": location.z,
-    }
-
-
-def dict_to_carla_location(location: Dict[str, float]) -> carla.Location:
-    return carla.Location(x=location["x"], y=location["y"], z=location["z"])
+        return super()._load_and_run_scenario(args, config)

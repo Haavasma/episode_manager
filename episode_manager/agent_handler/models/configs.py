@@ -19,6 +19,12 @@ class LidarConfiguration(TypedDict):
     transform: Transform  # = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 
+
+def car_config_from_dict(config: dict):
+
+
+    return 
+
 @dataclass
 class CarConfiguration:
     model: str

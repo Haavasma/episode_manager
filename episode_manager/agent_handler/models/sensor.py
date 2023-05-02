@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -19,12 +19,14 @@ class LidarData:
     """
 
     points: List[LidarPoint]
+    _bev: Optional[np.ndarray] = None
 
-    def __post_init__(self):
-        """
-        Convert to bird eye view
-        """
-        self.bev = self._to_bev()
+    @property
+    def bev(self) -> np.ndarray:
+        if self._bev is None:
+            self._bev = self._to_bev()
+
+        return self._bev
 
     def _to_bev(self) -> np.ndarray:
         # TODO: find ways to optimize this

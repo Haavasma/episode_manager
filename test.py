@@ -2,8 +2,6 @@ import random
 import time
 
 import carla
-from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
-from episode_manager.data import TrainingType
 import queue
 
 from episode_manager.episode_manager import (
@@ -16,21 +14,18 @@ from episode_manager.episode_manager import (
 def main():
     config = EpisodeManagerConfiguration()
 
-    config.car_config.carla_fps = 10
-
     config.render_client = False
     config.render_server = False
 
     config.port = 2000
     config.traffic_manager_port = 8000
-    config.car_config.lidar["enabled"] = False
-    config.car_config.cameras = []
+    config.carla_fps = 10
 
     # for camera in config.car_config.cameras:
     #     camera["width"] = 100
     #     camera["height"] = 100
 
-    manager = EpisodeManager(config, None, None)
+    manager = EpisodeManager(config)
 
     fpses = queue.Queue()
 
@@ -39,7 +34,7 @@ def main():
 
     for i in range(50):
         state = manager.start_episode()
-        for j in range(50):
+        for j in range(2000):
             start = time.time()
             print("\n")
 
@@ -57,7 +52,7 @@ def main():
             # EPISODE 1, STEP 418
             print(f"EPISODE: {i}, STEP: {j}")
             state = manager.step(action)
-            if state.scenario_state.done:
+            if state.done:
                 print("DONE")
                 break
 

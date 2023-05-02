@@ -30,7 +30,6 @@ class WorldStateRenderer:
             self.height = surface.get_height()
             self.width = surface.get_width()
         elif surface.get_width() != self.width or surface.get_height() != self.height:
-
             pygame.quit()
             pygame.init()
             pygame.font.init()
@@ -55,16 +54,16 @@ def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
     surface = display_text(
         surface,
         {
-            "Vehicle Speed": str(state.ego_vehicle_state.speed),
-            "Distance to traffic light": str(
-                state.ego_vehicle_state.privileged.dist_to_traffic_light
-            ),
-            "distance to vehicle": str(
-                state.ego_vehicle_state.privileged.dist_to_vehicle
-            ),
-            "distance to pedestrian": str(
-                state.ego_vehicle_state.privileged.dist_to_pedestrian
-            ),
+            "Vehicle Speed": str(state.input_data["speed"]),
+            # "Distance to traffic light": str(
+            #     state.ego_vehicle_state.privileged.dist_to_traffic_light
+            # ),
+            # "distance to vehicle": str(
+            #     state.ego_vehicle_state.privileged.dist_to_vehicle
+            # ),
+            # "distance to pedestrian": str(
+            #     state.ego_vehicle_state.privileged.dist_to_pedestrian
+            # ),
         },
     )
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, DefaultDict, List, Tuple
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple
 
 from episode_manager.agent_handler.models.sensor import CameraManagerData
 from episode_manager.agent_handler.models.transform import Transform
@@ -16,22 +16,7 @@ class PrivilegedScenarioData:
 
 
 @dataclass
-class VehicleState:
-    sensor_data: CameraManagerData
-    speed: float
-    gps: Tuple[float, float]
-    compass: float
-    privileged: PrivilegedScenarioData
-
-
-@dataclass
-class ScenarioState:
-    global_plan: List[Any]
-    global_plan_world_coord: List[Tuple[Transform, int]]
-    done: bool
-
-
-@dataclass
 class WorldState:
-    ego_vehicle_state: VehicleState
-    scenario_state: ScenarioState
+    input_data: Dict[str, Any]
+    privileged: Optional[PrivilegedScenarioData]
+    done: bool
