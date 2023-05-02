@@ -1,21 +1,13 @@
-from dataclasses import dataclass, field
+import os
 import pathlib
+from dataclasses import dataclass, field
+from random import Random
 from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
-import carla
-import os
-
-from random import Random
 
 from episode_manager.agent_handler import (
     Action,
-    AgentHandler,
-    CarConfiguration,
 )
-from episode_manager.agent_handler.models.configs import (
-    LidarConfiguration,
-)
-from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import (
     EVALUATION_ROUTES,
     SCENARIOS,
@@ -25,7 +17,6 @@ from episode_manager.data import (
 )
 from episode_manager.models.world_state import WorldState
 from episode_manager.renderer import WorldStateRenderer
-
 from episode_manager.scenario_handler import ScenarioHandler
 
 
@@ -48,60 +39,60 @@ class EpisodeManagerConfiguration:
                 "roll": 0.0,
                 "pitch": 0.0,
                 "yaw": 0.0,
-                "width": 800,
-                "height": 600,
+                "width": 100,
+                "height": 100,
                 "fov": 100,
                 "id": "rgb_front",
             },
-            {
-                "type": "sensor.camera.rgb",
-                "x": -1.3,
-                "y": 0.0,
-                "z": 2.3,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": 180.0,
-                "width": 800,
-                "height": 600,
-                "fov": 100,
-                "id": "rgb_rear",
-            },
-            {
-                "type": "sensor.camera.rgb",
-                "x": 1.3,
-                "y": 0.0,
-                "z": 2.3,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": -60.0,
-                "width": 800,
-                "height": 600,
-                "fov": 100,
-                "id": "rgb_left",
-            },
-            {
-                "type": "sensor.camera.rgb",
-                "x": 1.3,
-                "y": 0.0,
-                "z": 2.3,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": 60.0,
-                "width": 800,
-                "height": 600,
-                "fov": 100,
-                "id": "rgb_right",
-            },
-            {
-                "type": "sensor.lidar.ray_cast",
-                "x": 1.3,
-                "y": 0.0,
-                "z": 2.5,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": 0.0,
-                "id": "lidar",
-            },
+            # {
+            #     "type": "sensor.camera.rgb",
+            #     "x": -1.3,
+            #     "y": 0.0,
+            #     "z": 2.3,
+            #     "roll": 0.0,
+            #     "pitch": 0.0,
+            #     "yaw": 180.0,
+            #     "width": 800,
+            #     "height": 600,
+            #     "fov": 100,
+            #     "id": "rgb_rear",
+            # },
+            # {
+            #     "type": "sensor.camera.rgb",
+            #     "x": 1.3,
+            #     "y": 0.0,
+            #     "z": 2.3,
+            #     "roll": 0.0,
+            #     "pitch": 0.0,
+            #     "yaw": -60.0,
+            #     "width": 800,
+            #     "height": 600,
+            #     "fov": 100,
+            #     "id": "rgb_left",
+            # },
+            # {
+            #     "type": "sensor.camera.rgb",
+            #     "x": 1.3,
+            #     "y": 0.0,
+            #     "z": 2.3,
+            #     "roll": 0.0,
+            #     "pitch": 0.0,
+            #     "yaw": 60.0,
+            #     "width": 800,
+            #     "height": 600,
+            #     "fov": 100,
+            #     "id": "rgb_right",
+            # },
+            # {
+            #     "type": "sensor.lidar.ray_cast",
+            #     "x": 1.3,
+            #     "y": 0.0,
+            #     "z": 2.5,
+            #     "roll": 0.0,
+            #     "pitch": 0.0,
+            #     "yaw": 0.0,
+            #     "id": "lidar",
+            # },
             {
                 "type": "sensor.other.imu",
                 "x": 0.0,
@@ -216,6 +207,8 @@ class EpisodeManager:
             file.scenario,
             id,
         )
+
+        print("GLOBAL PLAN: ", return_value[1])
 
         return return_value
 

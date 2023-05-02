@@ -34,7 +34,7 @@ def main():
 
     for i in range(50):
         state = manager.start_episode()
-        for j in range(2000):
+        for j in range(1000):
             start = time.time()
             print("\n")
 
