@@ -57,6 +57,8 @@ def runner_loop(
     scenario_runner = ScenarioRunnerControlled(args, manager)
     scenario_runner.frame_rate = carla_fps
 
+    print("CARLA FPS: ", carla_fps)
+
     while True:
         route_file, scenario_file, route_id = route_queue.get()
         scenario_runner.finished = False
@@ -110,7 +112,7 @@ class ScenarioHandler:
         ok = self._episode_started.wait(timeout=self._episode_timeout)
         if not ok:
             print("Scenario runner did not start episode in time")
-            os._exit(1)
+            raise RuntimeError("Scenario runner did not start episode in time")
         print("EPISODE STARTED")
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
@@ -148,6 +150,9 @@ class ScenarioHandler:
             file=True,
             output=True,
         )
+
+        print("CARLA FPS: ", self.carla_fps)
+
         self._runner_thread = threading.Thread(
             target=runner_loop,
             args=(
@@ -174,7 +179,7 @@ class ScenarioHandler:
         ok = self._ticked_event.wait(timeout=self._tick_timeout)
         if not ok:
             print("Scenario runner did not start episode in time")
-            os._exit(1)
+            raise RuntimeError("Scenario runner did not tick in time")
 
         self._ticked_event.clear()
 
@@ -192,7 +197,7 @@ class ScenarioHandler:
         ok = self._episode_stopped.wait(timeout=self._episode_timeout)
         if not ok:
             print("Scenario runner did not start episode in time")
-            os._exit(1)
+            raise RuntimeError("Scenario runner did not tick in time")
 
 
 class ScenarioRunnerControlled(ScenarioRunner):

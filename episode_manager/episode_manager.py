@@ -1,19 +1,17 @@
 from dataclasses import dataclass, field
 import pathlib
-from typing import List
+from typing import List, Optional
 from xml.etree import ElementTree as ET
 import carla
 import os
 
 from random import Random
+from carla_server import CarlaServer
 
 from episode_manager.agent_handler import (
     Action,
     AgentHandler,
     CarConfiguration,
-)
-from episode_manager.agent_handler.models.configs import (
-    LidarConfiguration,
 )
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 from episode_manager.data import (
@@ -31,9 +29,7 @@ from episode_manager.scenario_handler import ScenarioHandler
 
 @dataclass
 class EpisodeManagerConfiguration:
-    port: int = 2000
-    traffic_manager_port: int = 8000
-    host: str = "127.0.0.1"
+    carla_fps: float = 10.0
     render_server: bool = False
     render_client: bool = False
     training_type: TrainingType = TrainingType.TRAINING
@@ -84,11 +80,22 @@ class EpisodeManager:
     def __init__(
         self,
         config: EpisodeManagerConfiguration,
-        agent_handler: AgentHandler = None,
-        scenario_handler: ScenarioHandler = None,
+        agent_handler: Optional[AgentHandler] = None,
+        scenario_handler: Optional[ScenarioHandler] = None,
     ):
+        def on_exit(return_code, stdout, stderr):
+            print("Server exited with return code: ", return_code)
+            os._exit(return_code)
 
         self.config = config
+
+        self.server = CarlaServer()
+        host, port, tm_port = self.server.start_server(on_exit)
+
+        self.host = host
+        self.port = port
+        self.tm_port = tm_port
+
         self.scenario_handler = scenario_handler
         self.agent_handler = agent_handler
         self.world_renderer = None
@@ -99,10 +106,15 @@ class EpisodeManager:
             self.world_renderer = WorldStateRenderer()
 
         if scenario_handler is None:
-            self.scenario_handler = setup_scenario_handler(config)
+            self.scenario_handler = setup_scenario_handler(
+                host,
+                port,
+                tm_port,
+                config.carla_fps,
+            )
 
         if agent_handler is None:
-            self.agent_handler = setup_agent_handler(config)
+            self.agent_handler = setup_agent_handler(host, port, config)
 
         def get_episodes(training_type: TrainingType) -> List[EpisodeFiles]:
             routes: List[EpisodeFiles] = []
@@ -122,6 +134,9 @@ class EpisodeManager:
         )
 
         return
+
+    def __del__(self):
+        self.server.stop_server()
 
     def start_episode(self, town="Town03") -> WorldState:
         """
@@ -149,6 +164,12 @@ class EpisodeManager:
         rnd_index = Random().randint(0, len(ids) - 1)
         id = ids[rnd_index]
 
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler not initialized")
+
+        if self.agent_handler is None:
+            raise Exception("Agent handler not initialized")
+
         self.scenario_handler.start_episode(
             file.route,
             file.scenario,
@@ -170,6 +191,12 @@ class EpisodeManager:
         if self.stopped:
             raise Exception("Episode has already stopped")
 
+        if self.agent_handler is None:
+            raise Exception("Agent handler not initialized")
+
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler not initialized")
+
         self.agent_handler.apply_control(ego_vehicle_action)
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
@@ -189,6 +216,12 @@ class EpisodeManager:
         return world_state
 
     def stop_episode(self):
+        if self.agent_handler is None:
+            raise Exception("Agent handler not initialized")
+
+        if self.scenario_handler is None:
+            raise Exception("Scenario handler not initialized")
+
         if not self.stopped:
             self.agent_handler.stop()
             self.scenario_handler.stop_episode()
@@ -198,8 +231,10 @@ class EpisodeManager:
         return
 
 
-def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
-    client = carla.Client(config.host, config.port)
+def setup_agent_handler(
+    host: str, port: int, config: EpisodeManagerConfiguration
+) -> AgentHandler:
+    client = carla.Client(host, port)
     client.set_timeout(30)
     sim_world = client.get_world()
 
@@ -209,12 +244,12 @@ def setup_agent_handler(config: EpisodeManagerConfiguration) -> AgentHandler:
     return agent_handler
 
 
-def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandler:
+def setup_scenario_handler(host, port, tm_port, fps) -> ScenarioHandler:
     scenario_handler = ScenarioHandler(
-        config.host,
-        config.port,
-        config.traffic_manager_port,
-        carla_fps=config.car_config.carla_fps,
+        host,
+        port,
+        tm_port,
+        carla_fps=fps,
     )
 
     return scenario_handler
