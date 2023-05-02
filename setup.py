@@ -3,7 +3,9 @@ from setuptools import setup, find_packages
 
 setup(
     packages=[
-        package for package in find_packages() if package.startswith("episode_manager")
+        package
+        for package in find_packages()
+        if package.startswith("episode_manager") or package.startswith("carla_server")
     ],
     name="episode_manager",
     version="0.9.13",
