@@ -57,8 +57,6 @@ def runner_loop(
     scenario_runner = ScenarioRunnerControlled(args, manager)
     scenario_runner.frame_rate = carla_fps
 
-    print("CARLA FPS: ", carla_fps)
-
     while True:
         route_file, scenario_file, route_id = route_queue.get()
         scenario_runner.finished = False
@@ -91,7 +89,7 @@ class ScenarioHandler:
     _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
     _tick_timeout = 10.0
-    _episode_timeout = 30.0
+    _episode_timeout = 60.0
 
     def start_episode(
         self,
@@ -150,8 +148,6 @@ class ScenarioHandler:
             file=True,
             output=True,
         )
-
-        print("CARLA FPS: ", self.carla_fps)
 
         self._runner_thread = threading.Thread(
             target=runner_loop,

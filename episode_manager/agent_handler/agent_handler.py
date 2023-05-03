@@ -100,15 +100,17 @@ class AgentHandler:
         self.player_max_speed_fast = 3.713
 
         # Get the ego vehicle
-        while self.player is None:
-            print("Waiting for the ego vehicle...")
-            time.sleep(1)
-            possible_vehicles = self.world.get_actors().filter("vehicle.*")
-            for vehicle in possible_vehicles:
-                if vehicle.attributes["role_name"] == "hero":
-                    print("Ego vehicle found")
-                    self.player = vehicle
-                    break
+        print("Waiting for the ego vehicle...")
+        possible_vehicles = self.world.get_actors().filter("vehicle.*")
+        for vehicle in possible_vehicles:
+            if vehicle.attributes["role_name"] == "hero":
+                print("Ego vehicle found")
+                self.player = vehicle
+                break
+
+        if self.player is None:
+            print("Ego vehicle not found")
+            raise RuntimeError("Ego vehicle not found")
 
         self.player_name = self.player.type_id
 
@@ -134,7 +136,10 @@ class AgentHandler:
         """
         Apply the given control to the ego vehicle
         """
-        self.player.apply_control(control.carla_vehicle_control())
+        try:
+            self.player.apply_control(control.carla_vehicle_control())
+        except Exception as e:
+            raise RuntimeError(f"Could not apply control to vehicle: {e}")
 
         return
 

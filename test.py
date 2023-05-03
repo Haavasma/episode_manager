@@ -21,8 +21,6 @@ def main():
     config.render_client = False
     config.render_server = False
 
-    config.port = 2000
-    config.traffic_manager_port = 8000
     config.car_config.lidar["enabled"] = False
     config.car_config.cameras = []
 
@@ -39,7 +37,7 @@ def main():
 
     for i in range(50):
         state = manager.start_episode()
-        for j in range(50):
+        for j in range(200):
             start = time.time()
             print("\n")
 

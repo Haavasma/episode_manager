@@ -6,6 +6,8 @@ import carla
 import os
 
 from random import Random
+
+from srunner.scenarios.route_scenario import RunningStopTest
 from carla_server import CarlaServer
 
 from episode_manager.agent_handler import (
@@ -142,7 +144,6 @@ class EpisodeManager:
         """
         Starts a new route in the simulator based on the provided configurations
         """
-
         self.town = town
 
         if not self.stopped:
@@ -170,13 +171,18 @@ class EpisodeManager:
         if self.agent_handler is None:
             raise Exception("Agent handler not initialized")
 
-        self.scenario_handler.start_episode(
-            file.route,
-            file.scenario,
-            id,
-        )
+        try:
+            self.scenario_handler.start_episode(
+                file.route,
+                file.scenario,
+                id,
+            )
 
-        self.agent_handler.restart()
+            self.agent_handler.restart()
+        except RuntimeError as e:
+            print("Error starting episode: ", e)
+            self.server.stop_server()
+            os._exit(1)
 
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
@@ -198,19 +204,19 @@ class EpisodeManager:
             raise Exception("Scenario handler not initialized")
 
         self.agent_handler.apply_control(ego_vehicle_action)
-        scenario_state = self.scenario_handler.tick()
-        agent_state = self.agent_handler.read_world_state(scenario_state)
+        self.scenario_state = self.scenario_handler.tick()
+        self.agent_state = self.agent_handler.read_world_state(self.scenario_state)
 
         world_state: WorldState = WorldState(
-            ego_vehicle_state=agent_state,
-            scenario_state=scenario_state,
+            ego_vehicle_state=self.agent_state,
+            scenario_state=self.scenario_state,
         )
 
         # Render the world state with world_renderer
         if self.world_renderer:
             self.world_renderer.render(world_state)
 
-        if scenario_state.done:
+        if self.scenario_state.done:
             self.stop_episode()
 
         return world_state
@@ -228,6 +234,7 @@ class EpisodeManager:
             self.stopped = True
         else:
             print("Episode has already stopped")
+
         return
 
 
@@ -235,7 +242,7 @@ def setup_agent_handler(
     host: str, port: int, config: EpisodeManagerConfiguration
 ) -> AgentHandler:
     client = carla.Client(host, port)
-    client.set_timeout(30)
+    client.set_timeout(60)
     sim_world = client.get_world()
 
     agent_handler = AgentHandler(
