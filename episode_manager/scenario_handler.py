@@ -45,8 +45,6 @@ class DummyAgent(autonomous_agent.AutonomousAgent):
         return self.control
 
     def sensors(self):
-        print("GETTING SENSORS")
-        print("SENSORS: ", self._sensors_list)
         return self._sensors_list
 
 
@@ -63,7 +61,6 @@ class ScenarioHandler:
     sensor_list: List[Dict] = field(default_factory=lambda: [])
 
     def __post_init__(self):
-        print("Setting up scenario handler")
         self._scenario_runner: Optional[ScenarioRunnerControlled] = None
 
     def start_episode(
@@ -192,8 +189,6 @@ class ScenarioRunnerControlled(LeaderboardEvaluator):
         """
         Setup CARLA client and world
         """
-
-        print("SRUNNER INIT")
 
         self._sensor_list = sensor_list
         self.agent_instance: Optional[DummyAgent] = None

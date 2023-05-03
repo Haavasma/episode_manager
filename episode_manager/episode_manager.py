@@ -239,8 +239,6 @@ class EpisodeManager:
             id,
         )
 
-        print("GLOBAL PLAN: ", return_value[1])
-
         return return_value
 
     def step(self, ego_vehicle_action: Action) -> WorldState:
@@ -259,7 +257,6 @@ class EpisodeManager:
         try:
             self.world_state = self.scenario_handler.step(ego_vehicle_action)
         except RuntimeError as e:
-            print("runtime error: ", e)
             self.world_state.done = True
             self.reset()
 
