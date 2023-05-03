@@ -17,8 +17,6 @@ def main():
     config.render_client = False
     config.render_server = False
 
-    config.port = 2000
-    config.traffic_manager_port = 8000
     config.carla_fps = 10
 
     # for camera in config.car_config.cameras:
@@ -32,7 +30,7 @@ def main():
     for _ in range(10):
         fpses.put(0)
 
-    for i in range(50):
+    for i in range(1000):
         state = manager.start_episode()
         for j in range(1000):
             start = time.time()

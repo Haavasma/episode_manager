@@ -5,6 +5,8 @@ from random import Random
 from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 
+from carla_server import CarlaServer
+
 from episode_manager.agent_handler import (
     Action,
 )
@@ -22,13 +24,10 @@ from episode_manager.scenario_handler import ScenarioHandler
 
 @dataclass
 class EpisodeManagerConfiguration:
-    port: int = 2000
-    traffic_manager_port: int = 8000
-    host: str = "127.0.0.1"
+    carla_fps: int = 10
     render_server: bool = False
     render_client: bool = False
     training_type: TrainingType = TrainingType.TRAINING
-    carla_fps: int = 10
     sensor_list: List[Dict] = field(
         default_factory=lambda: [
             {
@@ -132,6 +131,8 @@ class EpisodeFiles:
 
 
 class EpisodeManager:
+    server: Optional[CarlaServer] = None
+
     def __init__(
         self,
         config: EpisodeManagerConfiguration,
@@ -139,6 +140,26 @@ class EpisodeManager:
         scenario_handler: Optional[ScenarioHandler] = None,
     ):
         self.config = config
+
+        self.iterations = 0
+        self.max_episodes = 10
+
+        def on_exit(return_code, stdout, stderr):
+            print("Server exited with return code: ", return_code)
+
+            # os._exit(return_code)
+
+        if self.server is None:
+            self.server = CarlaServer()
+        host, port, tm_port = self.server.start_server(on_exit)
+
+        print("Started server")
+
+        self.host = host
+        self.port = port
+        self.tm_port = tm_port
+
+        print("Starting scenario handler")
         self.scenario_handler = scenario_handler
         # self.agent_handler = agent_handler
         self.world_renderer = None
@@ -149,7 +170,11 @@ class EpisodeManager:
             self.world_renderer = WorldStateRenderer()
 
         if scenario_handler is None:
-            self.scenario_handler = setup_scenario_handler(config)
+            self.scenario_handler = setup_scenario_handler(
+                host, port, tm_port, config.carla_fps, config.sensor_list
+            )
+
+        print("set up scenario handler")
 
         # if agent_handler is None:
         #     self.agent_handler = setup_agent_handler(config)
@@ -171,12 +196,18 @@ class EpisodeManager:
             config.training_type,
         )
 
+        print("init")
+
         return
 
     def start_episode(self, town="Town03") -> Tuple[WorldState, List]:
         """
         Starts a new route in the simulator based on the provided configurations
         """
+        if self.iterations >= self.max_episodes:
+            self.iterations = 0
+            self.reset()
+        self.iterations += 1
 
         self.town = town
 
@@ -225,17 +256,32 @@ class EpisodeManager:
 
         # self.agent_handler.apply_control(ego_vehicle_action)
 
-        world_state = self.scenario_handler.step(ego_vehicle_action)
+        try:
+            self.world_state = self.scenario_handler.step(ego_vehicle_action)
+        except RuntimeError as e:
+            print("runtime error: ", e)
+            self.world_state.done = True
+            self.reset()
+
         # agent_state = self.agent_handler.read_world_state(scenario_state)
 
         # Render the world state with world_renderer
         if self.world_renderer:
-            self.world_renderer.render(world_state)
+            self.world_renderer.render(self.world_state)
 
-        if world_state.done:
+        if self.world_state.done:
             self.stop_episode()
 
-        return world_state
+        return self.world_state
+
+    def reset(self):
+        if self.scenario_handler is not None:
+            self.scenario_handler.destroy()
+            del self.scenario_handler
+            self.scenario_handler = None
+        if self.server is not None:
+            self.server.stop_server()
+        self.__init__(self.config)
 
     def stop_episode(self):
         if self.scenario_handler is None:
@@ -247,6 +293,7 @@ class EpisodeManager:
             self.stopped = True
         else:
             print("Episode has already stopped")
+
         return
 
 
@@ -261,13 +308,13 @@ class EpisodeManager:
 #     return agent_handler
 
 
-def setup_scenario_handler(config: EpisodeManagerConfiguration) -> ScenarioHandler:
+def setup_scenario_handler(host, port, tm_port, fps, sensor_list) -> ScenarioHandler:
     scenario_handler = ScenarioHandler(
-        config.host,
-        config.port,
-        config.traffic_manager_port,
-        carla_fps=config.carla_fps,
-        sensor_list=config.sensor_list,
+        host,
+        port,
+        tm_port,
+        carla_fps=fps,
+        sensor_list=sensor_list,
     )
 
     return scenario_handler

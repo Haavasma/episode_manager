@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import carla
-import numpy as np
 from leaderboard.autoagents import autonomous_agent
 from leaderboard.leaderboard_evaluator import LeaderboardEvaluator
 from leaderboard.utils.route_indexer import RouteIndexer
@@ -64,6 +63,7 @@ class ScenarioHandler:
     sensor_list: List[Dict] = field(default_factory=lambda: [])
 
     def __post_init__(self):
+        print("Setting up scenario handler")
         self._scenario_runner: Optional[ScenarioRunnerControlled] = None
 
     def start_episode(
@@ -161,6 +161,11 @@ class ScenarioHandler:
             privileged=None,
         )
 
+    def destroy(self):
+        client = carla.Client(self.host, self.port)
+        tm = client.get_trafficmanager(self.traffic_manager_port)
+        tm.shut_down()
+
     def stop_episode(self):
         """
         Stop the scenario runner loop
@@ -186,8 +191,9 @@ class ScenarioRunnerControlled(LeaderboardEvaluator):
     ):
         """
         Setup CARLA client and world
-        Setup ScenarioManager
         """
+
+        print("SRUNNER INIT")
 
         self._sensor_list = sensor_list
         self.agent_instance: Optional[DummyAgent] = None
@@ -195,8 +201,6 @@ class ScenarioRunnerControlled(LeaderboardEvaluator):
         return super().__init__(args, statistics_manager)
 
     def _load_and_run_scenario(self, args, config):
-        print("SENSOR_LIST: ", self._sensor_list)
-
         self.agent_instance = DummyAgent(self._sensor_list)
         config.agent = self.agent_instance
 
