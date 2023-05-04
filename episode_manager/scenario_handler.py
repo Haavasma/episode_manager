@@ -59,6 +59,8 @@ def runner_loop(
 
     while True:
         route_file, scenario_file, route_id = route_queue.get()
+        if route_file == "stop":
+            break
         scenario_runner.finished = False
 
         route_configs = RouteParser.parse_routes_file(
@@ -88,7 +90,7 @@ class ScenarioHandler:
     _trajectory: List = field(default_factory=lambda: [])
     _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
-    _tick_timeout = 10.0
+    _tick_timeout = 15.0
     _episode_timeout = 60.0
 
     def start_episode(
@@ -184,6 +186,14 @@ class ScenarioHandler:
             global_plan_world_coord=self._global_plan_world_coord,
             done=self._episode_stopped.is_set(),
         )
+
+    def destroy(self):
+        self._route_queue.put(("stop", "stop", "stop"))
+        tm = carla.Client(self.host, self.port).get_trafficmanager(
+            self.traffic_manager_port
+        )
+
+        tm.shut_down()
 
     def stop_episode(self):
         """

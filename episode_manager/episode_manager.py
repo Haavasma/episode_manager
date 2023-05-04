@@ -84,10 +84,13 @@ class EpisodeManager:
         config: EpisodeManagerConfiguration,
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
+        reset_interval: int = 10,
     ):
         def on_exit(return_code, stdout, stderr):
             print("Server exited with return code: ", return_code)
-            os._exit(return_code)
+
+        self.iterations = 0
+        self.reset_interval = reset_interval
 
         self.config = config
 
@@ -137,8 +140,19 @@ class EpisodeManager:
 
         return
 
-    def __del__(self):
-        self.server.stop_server()
+    def reset(self):
+        if self.scenario_handler is not None:
+            self.scenario_handler.destroy()
+            del self.scenario_handler
+            self.scenario_handler = None
+
+        if self.agent_handler is not None:
+            del self.agent_handler
+            self.agent_handler = None
+        if self.server is not None:
+            self.server.stop_server()
+
+        self.__init__(self.config)
 
     def start_episode(self, town="Town03") -> WorldState:
         """
@@ -148,6 +162,12 @@ class EpisodeManager:
 
         if not self.stopped:
             raise Exception("Episode has already started")
+
+        if self.iterations >= self.reset_interval:
+            self.reset()
+            self.iterations = 0
+
+        self.iterations += 1
 
         self.stopped = False
         file = self.routes[Random().randint(0, len(self.routes) - 1)]
@@ -203,9 +223,14 @@ class EpisodeManager:
         if self.scenario_handler is None:
             raise Exception("Scenario handler not initialized")
 
-        self.agent_handler.apply_control(ego_vehicle_action)
-        self.scenario_state = self.scenario_handler.tick()
-        self.agent_state = self.agent_handler.read_world_state(self.scenario_state)
+        try:
+            self.agent_handler.apply_control(ego_vehicle_action)
+            self.scenario_state = self.scenario_handler.tick()
+            self.agent_state = self.agent_handler.read_world_state(self.scenario_state)
+        except RuntimeError as e:
+            print("Error stepping episode: ", e)
+            self.server.stop_server()
+            os._exit(1)
 
         world_state: WorldState = WorldState(
             ego_vehicle_state=self.agent_state,
