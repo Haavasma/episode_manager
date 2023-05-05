@@ -43,7 +43,7 @@ def main():
 
 class CarlaServer:
     def start_server(
-        self, on_exit: Callable[[int, str, str], None]
+        self, on_exit: Callable[[int, str, str], None], gpu_device=0
     ) -> Tuple[str, int, int]:
         self.loop = asyncio.get_event_loop()
 
@@ -57,9 +57,8 @@ class CarlaServer:
         unlock_build()
 
         port = find_available_port()
-        device = get_gpu_with_most_vram()
-
-        command = f"cd {current_directory} && make run-carla CARLA_SERVER_PORT={port} CARLA_SERVER_GPU_DEVICE={device}"
+        # device = get_gpu_with_most_vram()
+        command = f"cd {current_directory} && make run-carla CARLA_SERVER_PORT={port} CARLA_SERVER_GPU_DEVICE={gpu_device}"
 
         self.process, self.future = self.loop.run_until_complete(
             run_subprocess(command, on_exit)

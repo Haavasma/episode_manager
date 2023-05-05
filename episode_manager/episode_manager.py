@@ -85,6 +85,7 @@ class EpisodeManager:
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
         reset_interval: int = 5,
+        gpu_device: int = 0,
     ):
         def on_exit(return_code, stdout, stderr):
             print("Server exited with return code: ", return_code)
@@ -97,7 +98,7 @@ class EpisodeManager:
         self.config = config
 
         self.server = CarlaServer()
-        host, port, tm_port = self.server.start_server(on_exit)
+        host, port, tm_port = self.server.start_server(on_exit, gpu_device=gpu_device)
 
         self.host = host
         self.port = port
