@@ -43,7 +43,7 @@ def main():
 
 class CarlaServer:
     def start_server(
-        self, on_exit: Callable[[int, str, str], None], gpu_device=0
+        self, on_exit: Callable[[int, str, str], None], gpu_device=0, wait_time=10
     ) -> Tuple[str, int, int]:
         self.loop = asyncio.get_event_loop()
 
@@ -66,7 +66,7 @@ class CarlaServer:
 
         tm_port = find_available_port()
 
-        time.sleep(10)
+        time.sleep(wait_time)
 
         print(f"Server started on gpu: {gpu_device}")
 

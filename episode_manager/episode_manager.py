@@ -100,7 +100,7 @@ class EpisodeManager:
 
         self.server = CarlaServer()
         host, port, tm_port = self.server.start_server(
-            on_exit, gpu_device=self.gpu_device
+            on_exit, gpu_device=self.gpu_device, wait_time=30
         )
 
         self.host = host
