@@ -1,4 +1,5 @@
 import os
+import random
 import socket
 import subprocess
 import time
@@ -48,6 +49,8 @@ class CarlaServer:
 
         current_directory = os.path.abspath(os.path.dirname(__file__))
 
+        time.sleep(random.randint(0, 5))
+
         lock_build()
         command = f"cd {current_directory} &&  make build-carla"
         subprocess.run(command, shell=True, check=True)
@@ -64,7 +67,7 @@ class CarlaServer:
 
         tm_port = find_available_port()
 
-        time.sleep(10)
+        time.sleep(15)
 
         return ("127.0.0.1", port, tm_port)
 
