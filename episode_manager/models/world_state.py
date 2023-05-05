@@ -12,7 +12,7 @@ class PrivilegedScenarioData:
     dist_to_pedestrian: float
     transform: Transform
     collision_history: DefaultDict[Any, int]
-    speed_limit: float = 8.0
+    speed_limit: float = 6.0
 
 
 @dataclass
