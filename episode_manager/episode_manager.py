@@ -280,7 +280,7 @@ def setup_agent_handler(
     host: str, port: int, config: EpisodeManagerConfiguration
 ) -> AgentHandler:
     client = carla.Client(host, port)
-    client.set_timeout(120)
+    client.set_timeout(60)
     sim_world = client.get_world()
 
     agent_handler = AgentHandler(
