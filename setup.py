@@ -9,7 +9,7 @@ setup(
     ],
     name="episode_manager",
     version="0.9.13",
-    py_modules=["episode_manager"],
+    py_modules=["episode_manager", "carla_server"],
     package_data={
         "episode_manager": [
             "routes/*.xml",
