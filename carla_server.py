@@ -69,6 +69,8 @@ class CarlaServer:
 
         time.sleep(20)
 
+        print(f"Server started on gpu: {device}")
+
         return ("127.0.0.1", port, tm_port)
 
     def stop_server(self):
