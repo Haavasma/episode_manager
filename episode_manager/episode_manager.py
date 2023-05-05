@@ -84,7 +84,7 @@ class EpisodeManager:
         config: EpisodeManagerConfiguration,
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
-        reset_interval: int = 5,
+        reset_interval: int = 10,
         gpu_device: int = 0,
     ):
         def on_exit(return_code, stdout, stderr):
@@ -277,7 +277,7 @@ def setup_agent_handler(
     host: str, port: int, config: EpisodeManagerConfiguration
 ) -> AgentHandler:
     client = carla.Client(host, port)
-    client.set_timeout(60)
+    client.set_timeout(120)
     sim_world = client.get_world()
 
     agent_handler = AgentHandler(

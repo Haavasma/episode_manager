@@ -90,8 +90,8 @@ class ScenarioHandler:
     _trajectory: List = field(default_factory=lambda: [])
     _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
-    _tick_timeout = 15.0
-    _episode_timeout = 60.0
+    _tick_timeout = 30.0
+    _episode_timeout = 120.0
     destroyed = False
 
     def start_episode(
