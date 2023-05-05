@@ -84,10 +84,12 @@ class EpisodeManager:
         config: EpisodeManagerConfiguration,
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
-        reset_interval: int = 10,
+        reset_interval: int = 5,
     ):
         def on_exit(return_code, stdout, stderr):
             print("Server exited with return code: ", return_code)
+            if self.scenario_handler is not None:
+                self.scenario_handler.destroy()
 
         self.iterations = 0
         self.reset_interval = reset_interval
@@ -191,18 +193,25 @@ class EpisodeManager:
         if self.agent_handler is None:
             raise Exception("Agent handler not initialized")
 
-        try:
-            self.scenario_handler.start_episode(
-                file.route,
-                file.scenario,
-                id,
-            )
-
-            self.agent_handler.restart()
-        except RuntimeError as e:
-            print("Error starting episode: ", e)
+        tries = 0
+        max_tries = 3
+        while tries < max_tries:
+            try:
+                tries += 1
+                self.scenario_handler.start_episode(
+                    file.route,
+                    file.scenario,
+                    id,
+                )
+                self.agent_handler.restart()
+                break
+            except RuntimeError as e:
+                print("Error starting episode: ", e)
+                self.reset()
+        else:
+            self.scenario_handler.destroy()
             self.server.stop_server()
-            os._exit(1)
+            raise Exception("Could not start episode")
 
         scenario_state = self.scenario_handler.tick()
         agent_state = self.agent_handler.read_world_state(scenario_state)
@@ -230,7 +239,7 @@ class EpisodeManager:
         except RuntimeError as e:
             print("Error stepping episode: ", e)
             self.server.stop_server()
-            os._exit(1)
+            raise Exception("Error stepping episode: ", e)
 
         world_state: WorldState = WorldState(
             ego_vehicle_state=self.agent_state,

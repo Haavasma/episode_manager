@@ -92,6 +92,7 @@ class ScenarioHandler:
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
     _tick_timeout = 15.0
     _episode_timeout = 60.0
+    destroyed = False
 
     def start_episode(
         self,
@@ -188,12 +189,14 @@ class ScenarioHandler:
         )
 
     def destroy(self):
-        self._route_queue.put(("stop", "stop", "stop"))
-        tm = carla.Client(self.host, self.port).get_trafficmanager(
-            self.traffic_manager_port
-        )
+        if not self.destroyed:
+            self._route_queue.put(("stop", "stop", "stop"))
+            tm = carla.Client(self.host, self.port).get_trafficmanager(
+                self.traffic_manager_port
+            )
 
-        tm.shut_down()
+            tm.shut_down()
+            self.destroyed = True
 
     def stop_episode(self):
         """
