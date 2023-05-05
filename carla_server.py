@@ -36,7 +36,7 @@ def main():
 
     print("Server started on ", host, port, tm_port)
 
-    time.sleep(10)
+    time.sleep(20)
     server.stop_server()
 
 
@@ -64,7 +64,7 @@ class CarlaServer:
 
         tm_port = find_available_port()
 
-        time.sleep(10)
+        time.sleep(20)
 
         return ("127.0.0.1", port, tm_port)
 
