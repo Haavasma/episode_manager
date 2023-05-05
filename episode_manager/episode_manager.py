@@ -94,11 +94,14 @@ class EpisodeManager:
 
         self.iterations = 0
         self.reset_interval = reset_interval
+        self.gpu_device = gpu_device
 
         self.config = config
 
         self.server = CarlaServer()
-        host, port, tm_port = self.server.start_server(on_exit, gpu_device=gpu_device)
+        host, port, tm_port = self.server.start_server(
+            on_exit, gpu_device=self.gpu_device
+        )
 
         self.host = host
         self.port = port
@@ -155,7 +158,7 @@ class EpisodeManager:
         if self.server is not None:
             self.server.stop_server()
 
-        self.__init__(self.config)
+        self.__init__(self.config, gpu_device=self.gpu_device)
 
     def start_episode(self, town="Town03") -> WorldState:
         """

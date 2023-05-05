@@ -66,7 +66,7 @@ class CarlaServer:
 
         tm_port = find_available_port()
 
-        time.sleep(20)
+        time.sleep(10)
 
         print(f"Server started on gpu: {gpu_device}")
 
