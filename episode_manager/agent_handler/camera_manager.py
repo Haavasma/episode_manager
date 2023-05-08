@@ -115,7 +115,10 @@ class CameraManager:
             bp = bp_library.find("sensor.lidar.ray_cast")
             bp.set_attribute("channels", f"{lidar_config['channels']}")
             bp.set_attribute("range", f"{lidar_config['range']}")
-            # bp.set_attribute("rotation_frequency", f"{10}")
+            bp.set_attribute("rotation_frequency", f"{100}")
+            bp.set_attribute(
+                "points_per_second", f"{lidar_config['points_per_second']}"
+            )
 
             sensor = world.spawn_actor(
                 bp,
@@ -169,6 +172,8 @@ class CameraManager:
         self.image_data[index] = img
 
     def get_sensor_data(self) -> CameraManagerData:
+        print("LIDAR POINTS: ", len(self.lidar_data.points))
+
         return CameraManagerData(
             images=self.image_data,
             lidar_data=self.lidar_data,

@@ -62,6 +62,7 @@ class EpisodeManagerConfiguration:
             "channels": 32,
             "range": 5000,
             "shape": (3, 256, 256),
+            "points_per_second": 300000,
             "transform": Transform(Location(1.3, 0, 2.5), Rotation(0, -90, 0)),
         },
     )

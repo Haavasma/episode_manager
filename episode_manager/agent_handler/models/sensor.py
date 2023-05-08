@@ -40,7 +40,7 @@ class LidarData:
 
         lidar_transformed = point_cloud
 
-        lidar_transformed[:, 1] *= -1  # invert
+        # lidar_transformed[:, 1] *= -1  # invert
         lidar_transformed = np.expand_dims(
             _lidar_to_histogram_features(lidar_transformed), 0
         )

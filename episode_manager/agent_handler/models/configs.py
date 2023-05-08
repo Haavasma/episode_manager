@@ -16,6 +16,7 @@ class LidarConfiguration(TypedDict):
     channels: int  # = 32
     range: float  # = 5000
     shape: Tuple[int, int, int]  #  = (3, 256, 256)
+    points_per_second: int  # = 600000
     transform: Transform  # = Transform(Location(1.3, 0.0, 2.5), Rotation(0, -90, 0))
 
 

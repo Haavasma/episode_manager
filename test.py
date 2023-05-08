@@ -18,11 +18,8 @@ def main():
 
     config.car_config.carla_fps = 10
 
-    config.render_client = False
+    config.render_client = True
     config.render_server = False
-
-    config.car_config.lidar["enabled"] = False
-    config.car_config.cameras = []
 
     # for camera in config.car_config.cameras:
     #     camera["width"] = 100
