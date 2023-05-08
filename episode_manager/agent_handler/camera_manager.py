@@ -1,5 +1,5 @@
 import weakref
-from typing import List
+from typing import List, Optional, Tuple
 
 import carla
 import numpy as np
@@ -14,7 +14,9 @@ from episode_manager.agent_handler.models import (
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
 
 
-def from_carla_lidar(data: carla.LidarMeasurement) -> LidarData:
+def from_carla_lidar(
+    data: carla.LidarMeasurement, gps: Tuple[float, float], compass: float
+) -> LidarData:
     """
     Translate to LidarData from carla.LidarMeasurement
     """
@@ -30,7 +32,7 @@ def from_carla_lidar(data: carla.LidarMeasurement) -> LidarData:
             )
         )
 
-    return LidarData(points)
+    return LidarData(points, gps, compass)
 
 
 class CameraManager:
@@ -106,16 +108,18 @@ class CameraManager:
             self._setup_third_person_view(bp_library, world)
 
         # Lidar sensors
-        self.lidar_data: LidarData = LidarData([])
+        self.lidar_data: Optional[carla.LidarMeasurement] = None
 
         def set_lidar_data(data):
-            self.lidar_data = from_carla_lidar(data)
+            self.lidar_data = data
 
         if lidar_config is not None and lidar_config["enabled"]:
             bp = bp_library.find("sensor.lidar.ray_cast")
             bp.set_attribute("channels", f"{lidar_config['channels']}")
             bp.set_attribute("range", f"{lidar_config['range']}")
-            bp.set_attribute("rotation_frequency", f"{100}")
+            bp.set_attribute("rotation_frequency", f"{10}")
+            bp.set_attribute("upper_fov", str(10))
+            bp.set_attribute("lower_fov", str(-30))
             bp.set_attribute(
                 "points_per_second", f"{lidar_config['points_per_second']}"
             )
@@ -171,12 +175,14 @@ class CameraManager:
 
         self.image_data[index] = img
 
-    def get_sensor_data(self) -> CameraManagerData:
-        print("LIDAR POINTS: ", len(self.lidar_data.points))
+    def get_sensor_data(
+        self, gps: Tuple[float, float], compass: float
+    ) -> CameraManagerData:
+        lidar = from_carla_lidar(self.lidar_data, gps, compass)
 
         return CameraManagerData(
             images=self.image_data,
-            lidar_data=self.lidar_data,
+            lidar_data=lidar,
             third_person_view=self.third_person_image,
         )
 

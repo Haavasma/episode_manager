@@ -157,7 +157,7 @@ class AgentHandler:
             compass = self.imu_sensor.compass
             speed = get_forward_speed(self.player)
 
-            sensor_data = self.camera_manager.get_sensor_data()
+            sensor_data = self.camera_manager.get_sensor_data(gps, compass)
 
             return VehicleState(
                 sensor_data=sensor_data,

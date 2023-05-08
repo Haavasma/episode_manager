@@ -30,7 +30,6 @@ class WorldStateRenderer:
             self.height = surface.get_height()
             self.width = surface.get_width()
         elif surface.get_width() != self.width or surface.get_height() != self.height:
-
             pygame.quit()
             pygame.init()
             pygame.font.init()
@@ -110,7 +109,11 @@ def create_sensor_data_surface(state: WorldState) -> pygame.surface.Surface:
     third_person_surface = None
 
     if len(images) > 0:
-        concat_image = np.concatenate(images, axis=0)
+        max_height = max((img.shape[1] for img in images))
+
+        padded_images = [pad_image(img, img.shape[0], max_height) for img in images]
+
+        concat_image = np.concatenate(padded_images, axis=0)
         width = concat_image.shape[0]
         height = concat_image.shape[1]
         camera_surface = pygame.surfarray.make_surface(concat_image)
@@ -145,6 +148,14 @@ def create_sensor_data_surface(state: WorldState) -> pygame.surface.Surface:
         surface.blit(third_person_surface, third_person_pos)
 
     return surface
+
+
+# Pad the images
+def pad_image(image, target_width, target_height):
+    pad_width = target_width - image.shape[0]
+    pad_height = target_height - image.shape[1]
+
+    return np.pad(image, ((0, pad_width), (0, pad_height), (0, 0)), mode="constant")
 
 
 def display_text(

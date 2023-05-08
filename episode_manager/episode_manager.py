@@ -39,31 +39,31 @@ class EpisodeManagerConfiguration:
         "tesla",
         [
             {
-                "height": 400,
+                "height": 300,
                 "width": 400,
-                "fov": 103,
+                "fov": 100,
                 "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, -60, 0)),
             },
             {
-                "height": 400,
-                "width": 400,
-                "fov": 103,
+                "height": 600,
+                "width": 800,
+                "fov": 100,
                 "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 0, 0)),
             },
             {
-                "height": 400,
+                "height": 300,
                 "width": 400,
-                "fov": 103,
+                "fov": 100,
                 "transform": Transform(Location(1.3, 0, 2.3), Rotation(0, 60, 0)),
             },
         ],
         {
             "enabled": True,
-            "channels": 32,
-            "range": 5000,
+            "channels": 64,
+            "range": 85,
             "shape": (3, 256, 256),
             "points_per_second": 300000,
-            "transform": Transform(Location(1.3, 0, 2.5), Rotation(0, -90, 0)),
+            "transform": Transform(Location(1.3, 0, 2.5), Rotation(0, 90, 0)),
         },
     )
     route_directory: pathlib.Path = pathlib.Path(
@@ -101,7 +101,7 @@ class EpisodeManager:
 
         self.server = CarlaServer()
         host, port, tm_port = self.server.start_server(
-            on_exit, gpu_device=self.gpu_device, wait_time=30
+            on_exit, gpu_device=self.gpu_device, wait_time=10
         )
 
         self.host = host
