@@ -28,6 +28,7 @@ class VehicleState:
 class ScenarioState:
     global_plan: List[Any]
     global_plan_world_coord: List[Tuple[Transform, int]]
+    global_plan_world_coord_privileged: List[Tuple[Transform, int]]
     done: bool
 
 

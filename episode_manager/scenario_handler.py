@@ -118,12 +118,36 @@ class ScenarioHandler:
 
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
         gps_route, route = interpolate_trajectory(trajectory)
-        ds_ids = downsample_route(route, 1)
-        global_plan_world_coord = [(route[x][0], route[x][1]) for x in ds_ids]
+        ds_ids_hack = downsample_route(route, 1)
+
+        # Privileged high-res route
+        global_plan_world_coord_privileged = [
+            (route[x][0], route[x][1]) for x in ds_ids_hack
+        ]
+
+        self._global_plan_world_coord_privileged = [
+            (from_carla_transform(point[0]), point[1])
+            for point in global_plan_world_coord_privileged
+        ]
+
+        global_plan = [gps_route[x] for x in ds_ids_hack]
+
+        # Downsampled low-res route
+        ds_ids = downsample_route(global_plan_world_coord_privileged, 50)
+        global_plan_world_coord = [
+            (
+                global_plan_world_coord_privileged[x][0],
+                global_plan_world_coord_privileged[x][1],
+            )
+            for x in ds_ids
+        ]
+
+        self._global_plan = [global_plan[x] for x in ds_ids]
         self._global_plan_world_coord = [
             (from_carla_transform(point[0]), point[1])
             for point in global_plan_world_coord
         ]
+
         self._global_plan = [gps_route[x] for x in ds_ids]
 
         return self.tick()
@@ -185,6 +209,7 @@ class ScenarioHandler:
         return ScenarioState(
             global_plan=self._global_plan,
             global_plan_world_coord=self._global_plan_world_coord,
+            global_plan_world_coord_privileged=self._global_plan_world_coord_privileged,
             done=self._episode_stopped.is_set(),
         )
 

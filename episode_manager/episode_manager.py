@@ -1,13 +1,11 @@
-from dataclasses import dataclass, field
+import os
 import pathlib
+from dataclasses import dataclass, field
+from random import Random
 from typing import List, Optional
 from xml.etree import ElementTree as ET
+
 import carla
-import os
-
-from random import Random
-
-from srunner.scenarios.route_scenario import RunningStopTest
 from carla_server import CarlaServer
 
 from episode_manager.agent_handler import (
@@ -25,7 +23,6 @@ from episode_manager.data import (
 )
 from episode_manager.models.world_state import WorldState
 from episode_manager.renderer import WorldStateRenderer
-
 from episode_manager.scenario_handler import ScenarioHandler
 
 
@@ -101,7 +98,7 @@ class EpisodeManager:
 
         self.server = CarlaServer()
         host, port, tm_port = self.server.start_server(
-            on_exit, gpu_device=self.gpu_device, wait_time=10
+            on_exit, gpu_device=self.gpu_device, wait_time=30
         )
 
         self.host = host
@@ -161,7 +158,7 @@ class EpisodeManager:
 
         self.__init__(self.config, gpu_device=self.gpu_device)
 
-    def start_episode(self, town="Town03") -> WorldState:
+    def start_episode(self, town="Town06") -> WorldState:
         """
         Starts a new route in the simulator based on the provided configurations
         """

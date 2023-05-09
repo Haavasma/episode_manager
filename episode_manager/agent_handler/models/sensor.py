@@ -146,8 +146,6 @@ def lidar_to_histogram_features(lidar, crop=256):
     above_features = splat_points(above)
     total_features = below_features + above_features
     features = np.stack([below_features, above_features, total_features], axis=-1)
-    # features = np.rot90(features, k=3)
-
     features = np.transpose(features, (2, 0, 1)).astype(np.float32)
 
     return features
