@@ -83,7 +83,7 @@ def _to_bev(points: List[LidarPoint], gps: Tuple[float, float], compass: float):
     start_time = time.time()
 
     if len(points) <= 0:
-        return np.zeros((3, 256, 256))
+        return np.zeros((3, 224, 224))
 
     data: List[List[float]] = []
 
