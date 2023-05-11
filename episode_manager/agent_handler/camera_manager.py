@@ -22,15 +22,16 @@ def from_carla_lidar(
     """
     points = []
 
-    for detection in data:
-        points.append(
-            LidarPoint(
-                detection.point.x,
-                detection.point.y,
-                detection.point.z,
-                detection.intensity,
+    if data is not None:
+        for detection in data:
+            points.append(
+                LidarPoint(
+                    detection.point.x,
+                    detection.point.y,
+                    detection.point.z,
+                    detection.intensity,
+                )
             )
-        )
 
     return LidarData(points, gps, compass)
 
@@ -69,7 +70,7 @@ class CameraManager:
 
         # Camera sensors
         self.image_data = [
-            np.zeros((config["height"], config["width"], 4))
+            np.zeros((config["height"], config["width"], 4)).astype(np.uint8)
             for config in camera_configs
         ]
 
@@ -78,6 +79,8 @@ class CameraManager:
         self.set_data = []
 
         self.sensors = []
+
+        print("CAMERA CONFIGS: ", camera_configs)
 
         for index, camera in enumerate(camera_configs):
             bp = bp_library.find("sensor.camera.rgb")
@@ -139,12 +142,12 @@ class CameraManager:
         camera = self.third_person_camera_config
 
         def set_third_person_data(image):
-            array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+            array = np.frombuffer(image.raw_data)
             image = array.reshape(
                 camera["height"],
                 camera["width"],
                 4,
-            )
+            ).astype(np.uint8)
 
             self.third_person_image = image
 
@@ -171,7 +174,7 @@ class CameraManager:
             self.camera_configs[index]["height"],
             self.camera_configs[index]["width"],
             4,
-        )
+        ).astype(np.uint8)
 
         self.image_data[index] = img
 
