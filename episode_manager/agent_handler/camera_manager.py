@@ -80,8 +80,6 @@ class CameraManager:
 
         self.sensors = []
 
-        print("CAMERA CONFIGS: ", camera_configs)
-
         for index, camera in enumerate(camera_configs):
             bp = bp_library.find("sensor.camera.rgb")
             bp.set_attribute("image_size_x", f"{camera['width']}")

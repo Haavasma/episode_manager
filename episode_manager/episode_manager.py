@@ -93,6 +93,7 @@ class EpisodeManager:
         self.iterations = 0
         self.reset_interval = reset_interval
         self.gpu_device = gpu_device
+        self.statistics = {}
 
         self.config = config
 

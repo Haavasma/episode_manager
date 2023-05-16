@@ -80,8 +80,6 @@ class LidarData:
 
 
 def _to_bev(points: List[LidarPoint], gps: Tuple[float, float], compass: float):
-    start_time = time.time()
-
     if len(points) <= 0:
         return np.zeros((3, 224, 224))
 
@@ -91,7 +89,6 @@ def _to_bev(points: List[LidarPoint], gps: Tuple[float, float], compass: float):
         data.append([point.x, point.y, point.z])
 
     point_cloud = np.array(data)
-    print("TIME TO PARSE POINTS TO NP ARRAY: ", time.time() - start_time)
 
     direction = np.pi / 2 - compass
 
@@ -106,7 +103,6 @@ def _to_bev(points: List[LidarPoint], gps: Tuple[float, float], compass: float):
     )
 
     lidar_processed = lidar_to_histogram_features(full_lidar)
-    print("TIME TO CONVERT TO BEV: ", time.time() - start_time)
 
     return lidar_processed
 
