@@ -25,14 +25,13 @@ class VehicleState:
 
 
 @dataclass
-class ScenarioState:
+class ScenarioData:
     global_plan: List[Any]
     global_plan_world_coord: List[Tuple[Transform, int]]
     global_plan_world_coord_privileged: List[Tuple[Transform, int]]
-    done: bool
 
 
 @dataclass
 class WorldState:
     ego_vehicle_state: VehicleState
-    scenario_state: ScenarioState
+    done: bool

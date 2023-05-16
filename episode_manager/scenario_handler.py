@@ -9,7 +9,7 @@ import sys
 import threading
 import uuid
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from typing_extensions import override
 from scenario_runner import RouteParser, ScenarioManager, ScenarioRunner
 from srunner.scenariomanager.timer import GameTime
@@ -24,7 +24,7 @@ from srunner.scenarios.route_scenario import interpolate_trajectory
 from srunner.tools.route_manipulation import downsample_route
 from episode_manager.agent_handler.models.transform import from_carla_transform
 
-from episode_manager.models.world_state import ScenarioState
+from episode_manager.models.world_state import ScenarioData
 
 
 # Backhanded solution to injecting information
@@ -40,6 +40,7 @@ def runner_loop(
     episode_stopped: threading.Event,
     trajectory: List,
     route_queue: Queue,
+    episode_statistics: Queue,
 ):
     if not pathlib.Path(args.outputDir).exists():
         pathlib.Path(args.outputDir).mkdir(parents=True)
@@ -48,6 +49,7 @@ def runner_loop(
         tick_queue,
         ticked_event,
         episode_started,
+        episode_statistics,
         trajectory,
         args.debug,
         args.sync,
@@ -90,7 +92,8 @@ class ScenarioHandler:
     _trajectory: List = field(default_factory=lambda: [])
     _episode_started: threading.Event = field(default_factory=lambda: threading.Event())
     _episode_stopped: threading.Event = field(default_factory=lambda: threading.Event())
-    _tick_timeout = 30.0
+    _episode_statistics: Queue = field(default_factory=lambda: Queue())
+    _tick_timeout = 10.0
     _episode_timeout = 60.0
     destroyed = False
 
@@ -99,7 +102,7 @@ class ScenarioHandler:
         route_file: pathlib.Path,
         scenario_file: pathlib.Path,
         route_id: str,
-    ):
+    ) -> ScenarioData:
         self._episode_started.clear()
         self._episode_stopped.clear()
 
@@ -119,6 +122,8 @@ class ScenarioHandler:
         trajectory = [dict_to_carla_location(x) for x in self._trajectory]
         gps_route, route = interpolate_trajectory(trajectory)
         ds_ids_hack = downsample_route(route, 1)
+
+        print("FOUND TRAJECTORY")
 
         # Privileged high-res route
         global_plan_world_coord_privileged = [
@@ -149,8 +154,15 @@ class ScenarioHandler:
         ]
 
         self._global_plan = [gps_route[x] for x in ds_ids]
+        print("TICKING SCENARIO")
+        self.tick()
 
-        return self.tick()
+        print("RETURNING SCENARIO DATA")
+        return ScenarioData(
+            global_plan=self._global_plan,
+            global_plan_world_coord=self._global_plan_world_coord,
+            global_plan_world_coord_privileged=self._global_plan_world_coord_privileged,
+        )
 
     def start_runner_thread(self, route_file, scenario_file, route_id, timeout=60.0):
         self._route_queue = Queue()
@@ -187,31 +199,31 @@ class ScenarioHandler:
                 self._episode_stopped,
                 self._trajectory,
                 self._route_queue,
+                self._episode_statistics,
             ),
         )
         self._runner_thread.start()
 
-    def tick(self) -> ScenarioState:
+    def tick(self) -> bool:
         # wait for all ticks on server to be processed
         if self._runner_thread is None:
             raise RuntimeError("Scenario runner thread not started")
+
+        if self._episode_stopped.isSet():
+            return True
 
         self._ticked_event.clear()
         self._tick_queue.put("tick")
 
         ok = self._ticked_event.wait(timeout=self._tick_timeout)
-        if not ok:
-            print("Scenario runner did not start episode in time")
-            raise RuntimeError("Scenario runner did not tick in time")
+        if not ok and not self._episode_stopped.isSet():
+            message = "Scenario runner did not start episode in time"
+            print(message)
+            raise RuntimeError(message)
 
         self._ticked_event.clear()
 
-        return ScenarioState(
-            global_plan=self._global_plan,
-            global_plan_world_coord=self._global_plan_world_coord,
-            global_plan_world_coord_privileged=self._global_plan_world_coord_privileged,
-            done=self._episode_stopped.is_set(),
-        )
+        return self._episode_stopped.isSet()
 
     def destroy(self):
         if not self.destroyed:
@@ -223,15 +235,21 @@ class ScenarioHandler:
             tm.shut_down()
             self.destroyed = True
 
-    def stop_episode(self):
+    def stop_episode(self) -> Dict[str, Any]:
         """
         Stop the scenario runner loop
         """
+        if self._episode_stopped.isSet():
+            return self._episode_statistics.get(timeout=self._episode_timeout)
+
         self._tick_queue.put("stop")
         ok = self._episode_stopped.wait(timeout=self._episode_timeout)
         if not ok:
-            print("Scenario runner did not start episode in time")
-            raise RuntimeError("Scenario runner did not tick in time")
+            message = "Scenario runner did not stop episode in time"
+            print(message)
+            raise RuntimeError(message)
+
+        return self._episode_statistics.get(timeout=self._episode_timeout)
 
 
 class ScenarioRunnerControlled(ScenarioRunner):
@@ -263,6 +281,7 @@ class ScenarioManagerControlled(ScenarioManager):
         tick_queue: Queue,
         ticked_event: threading.Event,
         episode_started: threading.Event,
+        episode_statistics: Queue,
         trajectory: List,
         debug,
         sync,
@@ -271,6 +290,7 @@ class ScenarioManagerControlled(ScenarioManager):
         self.tick_queue = tick_queue
         self.ticked_event = ticked_event
         self.episode_started = episode_started
+        self.episode_statistics = episode_statistics
         self.trajectory = trajectory
 
         super().__init__(debug, sync, timeout)
@@ -316,6 +336,12 @@ class ScenarioManagerControlled(ScenarioManager):
         self.end_system_time = time.time()
         end_game_time = GameTime.get_time()
 
+        scenario_statistics = {}
+        for criterion in self.scenario.get_criteria():
+            scenario_statistics[criterion.name] = criterion.actual_value
+
+        # log statistics
+        self.episode_statistics.put(scenario_statistics)
         self.scenario_duration_system = self.end_system_time - self.start_system_time
         self.scenario_duration_game = end_game_time - start_game_time
 

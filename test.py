@@ -21,6 +21,9 @@ def main():
     config.render_client = False
     config.render_server = False
 
+    config.car_config.cameras = []
+    config.car_config.lidar["enabled"] = False
+
     # for camera in config.car_config.cameras:
     #     camera["width"] = 100
     #     camera["height"] = 100
@@ -33,8 +36,8 @@ def main():
         fpses.put(0)
 
     for i in range(1000):
-        state = manager.start_episode()
-        for j in range(1000):
+        state, _ = manager.start_episode()
+        for j in range(500):
             start = time.time()
             print("\n")
 
@@ -44,15 +47,15 @@ def main():
             #     state.ego_vehicle_state.privileged.dist_to_vehicle < 10
             #     and state.ego_vehicle_state.privileged.dist_to_vehicle >= 0.0
             # ):
-            action = Action(0.0, 1.0, False, 0.0)
-
-            if random.random() < 0.5:
-                action = Action(1.0, 0.0, False, 0.0)
+            # action = Action(0.0, 1.0, False, 0.0)
+            #
+            # if random.random() < 0.5:
+            action = Action(1.0, 0.0, False, 0.0)
 
             # EPISODE 1, STEP 418
             print(f"EPISODE: {i}, STEP: {j}")
             state = manager.step(action)
-            if state.scenario_state.done:
+            if state.done:
                 print("DONE")
                 break
 
@@ -61,7 +64,9 @@ def main():
 
             print(f"FPS: {sum(fpses.queue) / fpses.qsize()}")
 
-        manager.stop_episode()
+        statistics = manager.stop_episode()
+
+        print("STATISTICS: ", statistics)
 
     print("ENDED EPISODES")
 

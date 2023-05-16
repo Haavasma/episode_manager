@@ -23,7 +23,7 @@ from episode_manager.agent_handler.models.transform import (
 )
 from episode_manager.models.world_state import (
     PrivilegedScenarioData,
-    ScenarioState,
+    ScenarioData,
     VehicleState,
 )
 
@@ -143,7 +143,7 @@ class AgentHandler:
 
         return
 
-    def read_world_state(self, scenario_state: ScenarioState) -> VehicleState:
+    def read_world_state(self) -> VehicleState:
         """
         Read the state of the world from the sensors of the vehicle
         """
@@ -164,14 +164,12 @@ class AgentHandler:
                 speed=speed,
                 gps=gps,
                 compass=compass,
-                privileged=self._get_privileged_scenario_data(scenario_state),
+                privileged=self._get_privileged_scenario_data(),
             )
 
         raise Exception("Sensors not initialized")
 
-    def _get_privileged_scenario_data(
-        self, scenario_state: ScenarioState
-    ) -> PrivilegedScenarioData:
+    def _get_privileged_scenario_data(self) -> PrivilegedScenarioData:
         """
         Gathers privileged scenario data
         """
