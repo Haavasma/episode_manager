@@ -123,8 +123,6 @@ class ScenarioHandler:
         gps_route, route = interpolate_trajectory(trajectory)
         ds_ids_hack = downsample_route(route, 1)
 
-        print("FOUND TRAJECTORY")
-
         # Privileged high-res route
         global_plan_world_coord_privileged = [
             (route[x][0], route[x][1]) for x in ds_ids_hack
@@ -154,10 +152,8 @@ class ScenarioHandler:
         ]
 
         self._global_plan = [gps_route[x] for x in ds_ids]
-        print("TICKING SCENARIO")
         self.tick()
 
-        print("RETURNING SCENARIO DATA")
         return ScenarioData(
             global_plan=self._global_plan,
             global_plan_world_coord=self._global_plan_world_coord,

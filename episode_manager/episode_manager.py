@@ -218,7 +218,6 @@ class EpisodeManager:
 
         agent_state = self.agent_handler.read_world_state()
 
-        print("STARTED EPISODE IN MANAGER")
         return WorldState(ego_vehicle_state=agent_state, done=False), self.scenario_data
 
     def step(self, ego_vehicle_action: Action) -> WorldState:
