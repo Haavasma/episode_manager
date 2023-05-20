@@ -3,7 +3,7 @@ import time
 
 import carla
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
-from episode_manager.data import TrainingType
+from episode_manager.data import TrafficType
 import queue
 
 from episode_manager.episode_manager import (
@@ -28,7 +28,7 @@ def main():
     #     camera["width"] = 100
     #     camera["height"] = 100
 
-    manager = EpisodeManager(config, None, None)
+    manager = EpisodeManager(config)
 
     fpses = queue.Queue()
 
@@ -36,7 +36,15 @@ def main():
         fpses.put(0)
 
     for i in range(1000):
-        state, _ = manager.start_episode()
+        traffic_type = TrafficType.NO_TRAFFIC
+        # if i % 3 == 0:
+        #     traffic_type = TrafficType.SCENARIO
+        # elif i % 3 == 1:
+        #     traffic_type = TrafficType.SCENARIO
+
+        state, _ = manager.start_episode(
+            traffic_type=traffic_type,
+        )
         for j in range(500):
             start = time.time()
             print("\n")

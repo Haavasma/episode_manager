@@ -140,7 +140,7 @@ class CameraManager:
         camera = self.third_person_camera_config
 
         def set_third_person_data(image):
-            array = np.frombuffer(image.raw_data)
+            array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             image = array.reshape(
                 camera["height"],
                 camera["width"],
