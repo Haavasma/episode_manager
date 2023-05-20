@@ -36,11 +36,11 @@ def main():
         fpses.put(0)
 
     for i in range(1000):
-        traffic_type = TrafficType.SCENARIO
-        if i % 3 == 0:
-            traffic_type = TrafficType.SCENARIO
-        elif i % 3 == 1:
-            traffic_type = TrafficType.SCENARIO
+        traffic_type = TrafficType.NO_TRAFFIC
+        # if i % 3 == 0:
+        #     traffic_type = TrafficType.SCENARIO
+        # elif i % 3 == 1:
+        #     traffic_type = TrafficType.SCENARIO
 
         state, _ = manager.start_episode(
             traffic_type=traffic_type,

@@ -67,7 +67,7 @@ def runner_loop(
         )
 
         assert len(route_configs) == 1
-        scenario_runner._load_and_run_scenario(route_configs[0])
+        scenario_runner.load_and_run_with_traffic_type(route_configs[0], traffic_type)
         scenario_runner._cleanup()
         episode_stopped.set()
 

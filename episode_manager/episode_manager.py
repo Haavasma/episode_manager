@@ -86,7 +86,7 @@ class EpisodeManager:
         config: EpisodeManagerConfiguration,
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
-        reset_interval: int = 10,
+        reset_interval: int = 5,
         gpu_device: int = 0,
         server_wait_time: int = 10,
     ):
