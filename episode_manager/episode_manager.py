@@ -1,3 +1,5 @@
+from enum import Enum
+import enum
 import os
 import pathlib
 from dataclasses import dataclass, field
@@ -20,6 +22,7 @@ from episode_manager.data import (
     TRAINING_ROUTES,
     TRAINING_TYPE_TO_ROUTES,
     TrainingType,
+    TrafficType,
 )
 from episode_manager.models.world_state import ScenarioData, WorldState
 from episode_manager.renderer import WorldStateRenderer
@@ -74,6 +77,7 @@ class EpisodeManagerConfiguration:
 class EpisodeFiles:
     route: pathlib.Path
     scenario: pathlib.Path
+    no_scenario: pathlib.Path
 
 
 class EpisodeManager:
@@ -84,6 +88,7 @@ class EpisodeManager:
         scenario_handler: Optional[ScenarioHandler] = None,
         reset_interval: int = 10,
         gpu_device: int = 0,
+        server_wait_time: int = 10,
     ):
         def on_exit(return_code, stdout, stderr):
             print("Server exited with return code: ", return_code)
@@ -99,7 +104,7 @@ class EpisodeManager:
 
         self.server = CarlaServer()
         host, port, tm_port = self.server.start_server(
-            on_exit, gpu_device=self.gpu_device, wait_time=10
+            on_exit, gpu_device=self.gpu_device, wait_time=server_wait_time
         )
 
         self.host = host
@@ -117,10 +122,7 @@ class EpisodeManager:
 
         if scenario_handler is None:
             self.scenario_handler = setup_scenario_handler(
-                host,
-                port,
-                tm_port,
-                config.carla_fps,
+                host, port, tm_port, config.carla_fps
             )
 
         if agent_handler is None:
@@ -133,7 +135,8 @@ class EpisodeManager:
                 routes.append(
                     EpisodeFiles(
                         config.route_directory / path,
-                        config.route_directory / SCENARIOS[0],
+                        config.route_directory / SCENARIOS[0],  # All scenarios
+                        config.route_directory / SCENARIOS[1],  # No scenarios
                     )
                 )
 
@@ -159,7 +162,9 @@ class EpisodeManager:
 
         self.__init__(self.config, gpu_device=self.gpu_device)
 
-    def start_episode(self, town="Town06") -> Tuple[WorldState, ScenarioData]:
+    def start_episode(
+        self, town="Town06", traffic_type: TrafficType = TrafficType.SCENARIO
+    ) -> Tuple[WorldState, ScenarioData]:
         """
         Starts a new route in the simulator based on the provided configurations
         """
@@ -203,8 +208,11 @@ class EpisodeManager:
                 tries += 1
                 self.scenario_data = self.scenario_handler.start_episode(
                     file.route,
-                    file.scenario,
+                    file.scenario
+                    if traffic_type == TrafficType.SCENARIO
+                    else file.no_scenario,
                     id,
+                    traffic_type=traffic_type,
                 )
                 self.agent_handler.restart()
                 break
@@ -290,11 +298,6 @@ def setup_agent_handler(
 
 
 def setup_scenario_handler(host, port, tm_port, fps) -> ScenarioHandler:
-    scenario_handler = ScenarioHandler(
-        host,
-        port,
-        tm_port,
-        carla_fps=fps,
-    )
+    scenario_handler = ScenarioHandler(host, port, tm_port, carla_fps=fps)
 
     return scenario_handler

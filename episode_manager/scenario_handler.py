@@ -1,31 +1,28 @@
-from argparse import Namespace
-from dataclasses import dataclass, field
 import datetime
-from multiprocessing.sharedctypes import SynchronizedBase
 import os
 import pathlib
-from queue import Queue
-import sys
 import threading
-import uuid
 import time
+import uuid
+from argparse import Namespace
+from dataclasses import dataclass, field
+from queue import Queue
 from typing import Any, Dict, List, Optional
-from typing_extensions import override
-from scenario_runner import RouteParser, ScenarioManager, ScenarioRunner
-from srunner.scenariomanager.timer import GameTime
-
-import py_trees
 
 import carla
-
+import traceback
+import py_trees
+from scenario_runner import RouteParser, RouteScenario, ScenarioManager, ScenarioRunner
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
+from srunner.scenariomanager.timer import GameTime
 from srunner.scenariomanager.watchdog import Watchdog
-from srunner.scenarios.route_scenario import interpolate_trajectory
+from srunner.scenarios.route_scenario import BackgroundActivity, interpolate_trajectory
 from srunner.tools.route_manipulation import downsample_route
+from typing_extensions import override
+
 from episode_manager.agent_handler.models.transform import from_carla_transform
-
+from episode_manager.data import TrafficType
 from episode_manager.models.world_state import ScenarioData
-
 
 # Backhanded solution to injecting information
 # to the scenario runner and sending messages across threads
@@ -60,7 +57,7 @@ def runner_loop(
     scenario_runner.frame_rate = carla_fps
 
     while True:
-        route_file, scenario_file, route_id = route_queue.get()
+        route_file, scenario_file, route_id, traffic_type = route_queue.get()
         if route_file == "stop":
             break
         scenario_runner.finished = False
@@ -70,7 +67,7 @@ def runner_loop(
         )
 
         assert len(route_configs) == 1
-        scenario_runner._load_and_run_scenario(route_configs[0])
+        scenario_runner._run_route(route_configs[0], traffic_type)
         scenario_runner._cleanup()
         episode_stopped.set()
 
@@ -102,16 +99,19 @@ class ScenarioHandler:
         route_file: pathlib.Path,
         scenario_file: pathlib.Path,
         route_id: str,
+        traffic_type: TrafficType = TrafficType.SCENARIO,
     ) -> ScenarioData:
         self._episode_started.clear()
         self._episode_stopped.clear()
+
+        self.traffic_type = traffic_type
 
         if self._runner_thread is None:
             self.start_runner_thread(
                 route_file, scenario_file, route_id, self._episode_timeout
             )
 
-        self._route_queue.put((route_file, scenario_file, route_id))
+        self._route_queue.put((route_file, scenario_file, route_id, traffic_type))
         print("WAITING FOR EPISODE TO START")
         ok = self._episode_started.wait(timeout=self._episode_timeout)
         if not ok:
@@ -208,6 +208,9 @@ class ScenarioHandler:
         if self._episode_stopped.isSet():
             return True
 
+        # if self.traffic_type == TrafficType.NO_TRAFFIC:
+        #     self._remove_all_traffic()
+
         self._ticked_event.clear()
         self._tick_queue.put("tick")
 
@@ -223,7 +226,7 @@ class ScenarioHandler:
 
     def destroy(self):
         if not self.destroyed:
-            self._route_queue.put(("stop", "stop", "stop"))
+            self._route_queue.put(("stop", "stop", "stop", "stop"))
             tm = carla.Client(self.host, self.port).get_trafficmanager(
                 self.traffic_manager_port
             )
@@ -248,6 +251,51 @@ class ScenarioHandler:
         return self._episode_statistics.get(timeout=self._episode_timeout)
 
 
+class RouteScenarioControlled(RouteScenario):
+    def __init__(
+        self,
+        world,
+        config,
+        debug_mode=False,
+        criteria_enable=True,
+        timeout=300,
+        traffic_type: TrafficType = TrafficType.SCENARIO,
+    ):
+        self.config = config
+        self.route = None
+        self.sampled_scenarios_definitions = None
+
+        self._update_route(world, config, debug_mode)
+
+        ego_vehicle = self._update_ego_vehicle()
+
+        self.list_scenarios = self._build_scenario_instances(
+            world,
+            ego_vehicle,
+            self.sampled_scenarios_definitions,
+            scenarios_per_tick=5,
+            timeout=self.timeout,
+            debug_mode=debug_mode,
+        )
+
+        if traffic_type != TrafficType.NO_TRAFFIC:
+            self.list_scenarios.append(
+                BackgroundActivity(
+                    world, ego_vehicle, self.config, self.route, timeout=self.timeout
+                )
+            )
+
+        super(RouteScenario, self).__init__(
+            name=config.name,
+            ego_vehicles=[ego_vehicle],
+            config=config,
+            world=world,
+            debug_mode=False,
+            terminate_on_failure=False,
+            criteria_enable=criteria_enable,
+        )
+
+
 class ScenarioRunnerControlled(ScenarioRunner):
     @override
     def __init__(self, args, manager: ScenarioManager):
@@ -269,6 +317,88 @@ class ScenarioRunnerControlled(ScenarioRunner):
         # Create signal handler for SIGINT
         self._shutdown_requested = False
         self._start_wall_time = datetime.datetime.now()
+
+    def _run_route(self, config, traffic_type: TrafficType):
+        """
+        Load and run the scenario given by config
+        """
+        result = False
+        if not self._load_and_wait_for_world(config.town, config.ego_vehicles):
+            self._cleanup()
+            return False
+
+        if self._args.agent:
+            agent_class_name = self.module_agent.__name__.title().replace("_", "")
+            try:
+                self.agent_instance = getattr(self.module_agent, agent_class_name)(
+                    self._args.agentConfig
+                )
+                config.agent = self.agent_instance
+            except Exception as e:  # pylint: disable=broad-except
+                traceback.print_exc()
+                print("Could not setup required agent due to {}".format(e))
+                self._cleanup()
+                return False
+
+        CarlaDataProvider.set_traffic_manager_port(int(self._args.trafficManagerPort))
+        tm = self.client.get_trafficmanager(int(self._args.trafficManagerPort))
+        tm.set_random_device_seed(int(self._args.trafficManagerSeed))
+        if self._args.sync:
+            tm.set_synchronous_mode(True)
+
+        # Prepare scenario
+        print("Preparing scenario: " + config.name)
+        try:
+            self._prepare_ego_vehicles(config.ego_vehicles)
+            scenario = RouteScenarioControlled(
+                world=self.world,
+                config=config,
+                debug_mode=self._args.debug,
+                traffic_type=traffic_type,
+            )
+
+            # if traffic_type == TrafficType.NO_TRAFFIC:
+            scenario.list_scenarios = []
+        except Exception as exception:  # pylint: disable=broad-except
+            print("The scenario cannot be loaded")
+            traceback.print_exc()
+            print(exception)
+            self._cleanup()
+            return False
+
+        try:
+            if self._args.record:
+                recorder_name = "{}/{}/{}.log".format(
+                    os.getenv("SCENARIO_RUNNER_ROOT", "./"),
+                    self._args.record,
+                    config.name,
+                )
+                self.client.start_recorder(recorder_name, True)
+
+            # Load scenario and run it
+            self.manager.load_scenario(scenario, self.agent_instance)
+            self.manager.run_scenario()
+
+            # Provide outputs if required
+            self._analyze_scenario(config)
+
+            # Remove all actors, stop the recorder and save all criterias (if needed)
+            scenario.remove_all_actors()
+            if self._args.record:
+                self.client.stop_recorder()
+                self._record_criteria(
+                    self.manager.scenario.get_criteria(), recorder_name
+                )
+
+            result = True
+
+        except Exception as e:  # pylint: disable=broad-except
+            traceback.print_exc()
+            print(e)
+            result = False
+
+        self._cleanup()
+        return result
 
 
 class ScenarioManagerControlled(ScenarioManager):
