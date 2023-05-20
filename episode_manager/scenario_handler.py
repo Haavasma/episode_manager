@@ -67,7 +67,7 @@ def runner_loop(
         )
 
         assert len(route_configs) == 1
-        scenario_runner._run_route(route_configs[0], traffic_type)
+        scenario_runner._load_and_run_scenario(route_configs[0])
         scenario_runner._cleanup()
         episode_stopped.set()
 
@@ -208,9 +208,6 @@ class ScenarioHandler:
         if self._episode_stopped.isSet():
             return True
 
-        # if self.traffic_type == TrafficType.NO_TRAFFIC:
-        #     self._remove_all_traffic()
-
         self._ticked_event.clear()
         self._tick_queue.put("tick")
 
@@ -318,7 +315,7 @@ class ScenarioRunnerControlled(ScenarioRunner):
         self._shutdown_requested = False
         self._start_wall_time = datetime.datetime.now()
 
-    def _run_route(self, config, traffic_type: TrafficType):
+    def load_and_run_with_traffic_type(self, config, traffic_type: TrafficType):
         """
         Load and run the scenario given by config
         """

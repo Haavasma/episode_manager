@@ -3,7 +3,7 @@ import time
 
 import carla
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
-from episode_manager.data import TrafficType, TrainingType
+from episode_manager.data import TrafficType
 import queue
 
 from episode_manager.episode_manager import (
@@ -18,10 +18,10 @@ def main():
 
     config.car_config.carla_fps = 10
 
-    config.render_client = True
+    config.render_client = False
     config.render_server = False
 
-    # config.car_config.cameras = []
+    config.car_config.cameras = []
     config.car_config.lidar["enabled"] = False
 
     # for camera in config.car_config.cameras:
@@ -37,11 +37,10 @@ def main():
 
     for i in range(1000):
         traffic_type = TrafficType.SCENARIO
-
         if i % 3 == 0:
-            traffic_type = TrafficType.NO_TRAFFIC
+            traffic_type = TrafficType.SCENARIO
         elif i % 3 == 1:
-            traffic_type = TrafficType.TRAFFIC
+            traffic_type = TrafficType.SCENARIO
 
         state, _ = manager.start_episode(
             traffic_type=traffic_type,
