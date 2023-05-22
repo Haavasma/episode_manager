@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import pygame
 import numpy as np
 
@@ -45,26 +45,31 @@ class WorldStateRenderer:
         return
 
 
-def generate_pygame_surface(state: WorldState) -> pygame.surface.Surface:
+def generate_pygame_surface(
+    state: WorldState, additional_text: Optional[Dict[str, Any]] = None
+) -> pygame.surface.Surface:
     """
     Generates a pygame surface frame from the WorldState sensor data
     """
     surface = create_sensor_data_surface(state)
 
+    text = {
+        "Vehicle Speed": str(state.ego_vehicle_state.speed),
+        "Distance to traffic light": str(
+            state.ego_vehicle_state.privileged.dist_to_traffic_light
+        ),
+        "distance to vehicle": str(state.ego_vehicle_state.privileged.dist_to_vehicle),
+        "distance to pedestrian": str(
+            state.ego_vehicle_state.privileged.dist_to_pedestrian
+        ),
+    }
+
+    if additional_text is not None:
+        text.update(additional_text)
+
     surface = display_text(
         surface,
-        {
-            "Vehicle Speed": str(state.ego_vehicle_state.speed),
-            "Distance to traffic light": str(
-                state.ego_vehicle_state.privileged.dist_to_traffic_light
-            ),
-            "distance to vehicle": str(
-                state.ego_vehicle_state.privileged.dist_to_vehicle
-            ),
-            "distance to pedestrian": str(
-                state.ego_vehicle_state.privileged.dist_to_pedestrian
-            ),
-        },
+        text,
     )
 
     height = surface.get_height()
