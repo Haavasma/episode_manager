@@ -68,7 +68,7 @@ class CarlaServer:
 
         time.sleep(wait_time)
 
-        print(f"Server started on gpu: {gpu_device}")
+        print(f"Server started on gpu: {gpu_device}, port: {port}, tm_port: {tm_port}")
 
         return ("127.0.0.1", port, tm_port)
 
