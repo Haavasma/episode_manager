@@ -49,7 +49,7 @@ def main():
             start = time.time()
             print("\n")
 
-            # action = Action(1.0, 0.0, False, 0.0)
+            action = Action(1.0, 0.0, False, 0.0)
             #
             # if (
             #     state.ego_vehicle_state.privileged.dist_to_vehicle < 10
@@ -57,11 +57,14 @@ def main():
             # ):
             # action = Action(0.0, 1.0, False, 0.0)
             #
-            # if random.random() < 0.5:
-            action = Action(1.0, 0.0, False, 0.0)
+            # if random.random() < 0.2:
+            #     action = Action(0.0, 1.0, False, 0.0)
 
             # EPISODE 1, STEP 418
             print(f"EPISODE: {i}, STEP: {j}")
+            if state.ego_vehicle_state.speed > 5.0:
+                action = Action(0.0, 0.0, False, 0.0)
+
             state = manager.step(action)
             if state.done:
                 print("DONE")

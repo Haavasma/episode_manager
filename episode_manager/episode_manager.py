@@ -4,6 +4,8 @@ import os
 import pathlib
 from dataclasses import dataclass, field
 from random import Random
+import signal
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 
@@ -86,7 +88,7 @@ class EpisodeManager:
         config: EpisodeManagerConfiguration,
         agent_handler: Optional[AgentHandler] = None,
         scenario_handler: Optional[ScenarioHandler] = None,
-        reset_interval: int = 5,
+        reset_interval: int = 20,
         gpu_device: int = 0,
         server_wait_time: int = 10,
     ):
@@ -94,6 +96,22 @@ class EpisodeManager:
             print("Server exited with return code: ", return_code)
             if self.scenario_handler is not None:
                 self.scenario_handler.destroy()
+
+        def on_signal(sig, frame):
+            print("Killing threads and stopping server")
+            if self.agent_handler is not None:
+                self.agent_handler.stop()
+
+            if self.scenario_handler is not None:
+                self.scenario_handler.kill()
+
+            self.server.stop_server()
+
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, on_signal)
+        signal.signal(signal.SIGTERM, on_signal)
+        # signal.signal(signal.SIGKILL, on_signal)
 
         self.iterations = 0
         self.reset_interval = reset_interval

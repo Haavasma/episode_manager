@@ -1,6 +1,7 @@
 import datetime
 import os
 import pathlib
+import sys
 import threading
 import time
 import uuid
@@ -221,6 +222,12 @@ class ScenarioHandler:
 
         return self._episode_stopped.isSet()
 
+    def kill(self):
+        self._tick_queue.put("stop")
+        self._route_queue.put(("stop", "stop", "stop", "stop"))
+        if self._runner_thread is not None:
+            self._runner_thread.join(timeout=5.0)
+
     def destroy(self):
         if not self.destroyed:
             self._route_queue.put(("stop", "stop", "stop", "stop"))
@@ -437,10 +444,15 @@ class ScenarioManagerControlled(ScenarioManager):
 
         # message that scenario has started
         self.episode_started.set()
-        while self._running:
+
+        running = True
+
+        while running:
             # wait for ticks
             message = self.tick_queue.get()
+            # self._running = True
             if message == "stop":
+                running = False
                 self._running = False
 
             timestamp = None

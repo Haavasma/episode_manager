@@ -77,6 +77,7 @@ class CarlaServer:
             try:
                 print("PID: ", self.process.pid)
                 os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
 
             except ProcessLookupError:
                 print("Process already terminated")
