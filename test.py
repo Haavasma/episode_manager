@@ -21,7 +21,7 @@ def main():
     config.render_client = False
     config.render_server = False
 
-    config.car_config.cameras = []
+    # config.car_config.cameras = []
     config.car_config.lidar["enabled"] = False
 
     # for camera in config.car_config.cameras:
