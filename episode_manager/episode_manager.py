@@ -3,6 +3,7 @@ import enum
 import os
 import pathlib
 from dataclasses import dataclass, field
+import random
 from random import Random
 import signal
 import sys
@@ -130,7 +131,13 @@ class EpisodeManager:
             return routes
 
         self.training_routes = get_episodes(TrainingType.TRAINING)
-        self.evaluation_routes = get_episodes(TrainingType.EVALUATION)
+        evaluation_routes = get_episodes(TrainingType.EVALUATION)
+
+        # Shuffle the order of evaluation routes, so that running len(routes)
+        # episodes will run all the routes, but n < len(routes)
+        # will give a random sample of the routes
+        random.shuffle(evaluation_routes)
+        self.evaluation_routes = evaluation_routes
 
         return
 
