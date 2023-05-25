@@ -3,7 +3,7 @@ import time
 
 import carla
 from episode_manager.agent_handler.models.transform import Location, Rotation, Transform
-from episode_manager.data import TrafficType
+from episode_manager.data import TrafficType, TrainingType
 import queue
 
 from episode_manager.episode_manager import (
@@ -23,6 +23,7 @@ def main():
 
     # config.car_config.cameras = []
     config.car_config.lidar["enabled"] = False
+    config.training_type = TrainingType.EVALUATION
 
     # for camera in config.car_config.cameras:
     #     camera["width"] = 100
@@ -35,8 +36,8 @@ def main():
     for _ in range(10):
         fpses.put(0)
 
-    for i in range(1000):
-        traffic_type = TrafficType.NO_TRAFFIC
+    for i in range(1):
+        traffic_type = TrafficType.TRAFFIC
         # if i % 3 == 0:
         #     traffic_type = TrafficType.SCENARIO
         # elif i % 3 == 1:
@@ -45,7 +46,7 @@ def main():
         state, _ = manager.start_episode(
             traffic_type=traffic_type,
         )
-        for j in range(500):
+        for j in range(100):
             start = time.time()
             print("\n")
 
@@ -57,8 +58,8 @@ def main():
             # ):
             # action = Action(0.0, 1.0, False, 0.0)
             #
-            # if random.random() < 0.2:
-            #     action = Action(0.0, 1.0, False, 0.0)
+            if random.random() < 0.2:
+                action = Action(0.0, 1.0, False, 0.0)
 
             # EPISODE 1, STEP 418
             print(f"EPISODE: {i}, STEP: {j}")
@@ -75,11 +76,13 @@ def main():
 
             print(f"FPS: {sum(fpses.queue) / fpses.qsize()}")
 
-        statistics = manager.stop_episode()
+        _ = manager.stop_episode()
 
-        print("STATISTICS: ", statistics)
+        # print("STATISTICS: ", statistics)
 
     print("ENDED EPISODES")
+
+    manager.close()
 
     return
 

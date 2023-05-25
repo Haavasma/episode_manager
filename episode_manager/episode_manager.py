@@ -86,26 +86,14 @@ class EpisodeManager:
     def __init__(
         self,
         config: EpisodeManagerConfiguration,
-        agent_handler: Optional[AgentHandler] = None,
-        scenario_handler: Optional[ScenarioHandler] = None,
         reset_interval: int = 10,
         gpu_device: int = 0,
         server_wait_time: int = 10,
+        iterations: int = 0,
     ):
-        def on_exit(return_code, stdout, stderr):
-            print("Server exited with return code: ", return_code)
-            if self.scenario_handler is not None:
-                self.scenario_handler.destroy()
-
         def on_signal(sig, frame):
             print("Killing threads and stopping server")
-            if self.agent_handler is not None:
-                self.agent_handler.stop()
-
-            if self.scenario_handler is not None:
-                self.scenario_handler.kill()
-
-            self.server.stop_server()
+            self.close()
 
             sys.exit(0)
 
@@ -113,38 +101,19 @@ class EpisodeManager:
         signal.signal(signal.SIGTERM, on_signal)
         # signal.signal(signal.SIGKILL, on_signal)
 
-        self.iterations = 0
+        self.iterations = iterations
         self.reset_interval = reset_interval
         self.gpu_device = gpu_device
+        self.server_wait_time = server_wait_time
         self.statistics = {}
 
-        self.config = config
-
-        self.server = CarlaServer()
-        host, port, tm_port = self.server.start_server(
-            on_exit, gpu_device=self.gpu_device, wait_time=server_wait_time
-        )
-
-        self.host = host
-        self.port = port
-        self.tm_port = tm_port
-
-        self.scenario_handler = scenario_handler
-        self.agent_handler = agent_handler
+        self.scenario_handler = None
+        self.agent_handler = None
         self.world_renderer = None
         self.stopped = True
-        self.town = ""
+        self.server = None
 
-        if config.render_client:
-            self.world_renderer = WorldStateRenderer()
-
-        if scenario_handler is None:
-            self.scenario_handler = setup_scenario_handler(
-                host, port, tm_port, config.carla_fps
-            )
-
-        if agent_handler is None:
-            self.agent_handler = setup_agent_handler(host, port, config)
+        self.config = config
 
         def get_episodes(training_type: TrainingType) -> List[EpisodeFiles]:
             routes: List[EpisodeFiles] = []
@@ -160,11 +129,51 @@ class EpisodeManager:
 
             return routes
 
-        self.routes = get_episodes(
-            config.training_type,
-        )
+        self.training_routes = get_episodes(TrainingType.TRAINING)
+        self.evaluation_routes = get_episodes(TrainingType.EVALUATION)
 
         return
+
+    def setup_server(self):
+        def on_exit(return_code, stdout, stderr):
+            print("Server exited with return code: ", return_code)
+            if self.scenario_handler is not None:
+                self.scenario_handler.destroy()
+
+        self.server = CarlaServer()
+        host, port, tm_port = self.server.start_server(
+            on_exit, gpu_device=self.gpu_device, wait_time=self.server_wait_time
+        )
+
+        if self.config.render_client:
+            self.world_renderer = WorldStateRenderer()
+
+        self.scenario_handler = setup_scenario_handler(
+            host, port, tm_port, self.config.carla_fps
+        )
+
+        self.agent_handler = setup_agent_handler(host, port, self.config)
+
+    def close(self):
+        print("Stopping episode, killing threads and stopping server")
+        self.stop_episode()
+
+        # If thes server stopped abnormally, we should not report statistics, as they are not valid
+        self.statistics = {}
+
+        if self.agent_handler is not None:
+            self.agent_handler = None
+
+        if self.scenario_handler is not None:
+            self.scenario_handler.destroy()
+            self.scenario_handler = None
+
+        print("Stopping server")
+        if self.server is not None:
+            self.server.stop_server()
+            self.server = None
+
+        print("Stopped server")
 
     def reset(self):
         if self.scenario_handler is not None:
@@ -175,43 +184,69 @@ class EpisodeManager:
         if self.agent_handler is not None:
             del self.agent_handler
             self.agent_handler = None
+
         if self.server is not None:
             self.server.stop_server()
 
-        self.__init__(self.config, gpu_device=self.gpu_device)
+        self.__init__(
+            self.config, gpu_device=self.gpu_device, iterations=self.iterations
+        )
+
+    def __del__(self):
+        print("STOPPING EPISODE MANAGER")
+        self.close()
 
     def start_episode(
-        self, town="Town06", traffic_type: TrafficType = TrafficType.SCENARIO
+        self,
+        town: Optional[str] = None,
+        traffic_type: TrafficType = TrafficType.SCENARIO,
     ) -> Tuple[WorldState, ScenarioData]:
         """
         Starts a new route in the simulator based on the provided configurations
         """
-        self.town = town
+        if self.iterations % self.reset_interval == self.reset_interval - 1:
+            self.reset()
+
+        if self.server is None:
+            self.setup_server()
 
         if not self.stopped:
             raise Exception("Episode has already started")
 
-        if self.iterations >= self.reset_interval:
-            self.reset()
-            self.iterations = 0
-
         self.iterations += 1
 
         self.stopped = False
-        file = self.routes[Random().randint(0, len(self.routes) - 1)]
-        tree = ET.parse(file.route)
+
+        routes = (
+            self.training_routes
+            if self.config.training_type == TrainingType.TRAINING
+            else self.evaluation_routes
+        )
+
+        file = routes[Random().randint(0, len(routes) - 1)]
+
+        with open(file.route, "r") as f:
+            tree = ET.parse(f)
+
+        print("RUNNING TRAINING TYPE: ", self.config.training_type.value)
 
         # pick random id from route
         ids: List[str] = []
         for route in tree.iter("route"):
-            if route.attrib["town"] == town:
+            if town is None or route.attrib["town"] == town:
                 ids.append(route.attrib["id"])
 
         if len(ids) == 0:
             raise Exception("No route found for town: " + town)
 
         rnd_index = Random().randint(0, len(ids) - 1)
+
+        if self.config.training_type == TrainingType.EVALUATION:
+            rnd_index = self.iterations % len(ids)
+
         id = ids[rnd_index]
+
+        print("STARTING SCENARIO ID: ", id)
 
         if self.scenario_handler is None:
             raise Exception("Scenario handler not initialized")
@@ -251,8 +286,9 @@ class EpisodeManager:
         Runs one step/frame in the simulated scenario,
         performing the chosen action on the route environment
         """
+
         if self.stopped:
-            raise Exception("Episode has already stopped")
+            return WorldState(ego_vehicle_state=self.agent_state, done=True)
 
         if self.agent_handler is None:
             raise Exception("Agent handler not initialized")
@@ -286,18 +322,19 @@ class EpisodeManager:
         return world_state
 
     def stop_episode(self) -> Dict[str, Any]:
+        if self.stopped:
+            print("Episode has already stopped")
+            return self.statistics
+
+        self.stopped = True
         if self.agent_handler is None:
             raise Exception("Agent handler not initialized")
 
         if self.scenario_handler is None:
             raise Exception("Scenario handler not initialized")
 
-        if not self.stopped:
-            self.agent_handler.stop()
-            self.statistics = self.scenario_handler.stop_episode()
-            self.stopped = True
-        else:
-            print("Episode has already stopped")
+        self.agent_handler.stop()
+        self.statistics = self.scenario_handler.stop_episode()
 
         return self.statistics
 

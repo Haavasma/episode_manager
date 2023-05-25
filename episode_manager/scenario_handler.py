@@ -222,15 +222,13 @@ class ScenarioHandler:
 
         return self._episode_stopped.isSet()
 
-    def kill(self):
-        self._tick_queue.put("stop")
-        self._route_queue.put(("stop", "stop", "stop", "stop"))
-        if self._runner_thread is not None:
-            self._runner_thread.join(timeout=5.0)
-
     def destroy(self):
         if not self.destroyed:
             self._route_queue.put(("stop", "stop", "stop", "stop"))
+            self._tick_queue.put("stop")
+            if self._runner_thread is not None:
+                self._runner_thread.join(timeout=5.0)
+
             tm = carla.Client(self.host, self.port).get_trafficmanager(
                 self.traffic_manager_port
             )
