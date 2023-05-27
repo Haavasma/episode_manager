@@ -212,7 +212,7 @@ class EpisodeManager:
         Starts a new route in the simulator based on the provided configurations
         """
         if self.iterations % self.reset_interval == self.reset_interval - 1:
-            self.reset()
+            self.close()
 
         if self.server is None:
             self.setup_server()
@@ -261,28 +261,13 @@ class EpisodeManager:
         if self.agent_handler is None:
             raise Exception("Agent handler not initialized")
 
-        tries = 0
-        max_tries = 3
-        while tries < max_tries:
-            try:
-                tries += 1
-                self.scenario_data = self.scenario_handler.start_episode(
-                    file.route,
-                    file.scenario
-                    if traffic_type == TrafficType.SCENARIO
-                    else file.no_scenario,
-                    id,
-                    traffic_type=traffic_type,
-                )
-                self.agent_handler.restart()
-                break
-            except RuntimeError as e:
-                print("Error starting episode: ", e)
-                self.reset()
-        else:
-            self.scenario_handler.destroy()
-            self.server.stop_server()
-            raise Exception("Could not start episode")
+        self.scenario_data = self.scenario_handler.start_episode(
+            file.route,
+            file.scenario if traffic_type == TrafficType.SCENARIO else file.no_scenario,
+            id,
+            traffic_type=traffic_type,
+        )
+        self.agent_handler.restart()
 
         agent_state = self.agent_handler.read_world_state()
 
