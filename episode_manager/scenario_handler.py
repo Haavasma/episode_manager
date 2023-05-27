@@ -60,6 +60,7 @@ def runner_loop(
     while True:
         route_file, scenario_file, route_id, traffic_type = route_queue.get()
         if route_file == "stop":
+            episode_stopped.set()
             break
         scenario_runner.finished = False
 
