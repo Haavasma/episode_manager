@@ -240,7 +240,9 @@ class EpisodeManager:
         for route in tree.iter("route"):
             # Skip scenario 1 cause it just doesn't work lol
             if self.config.training_type == TrainingType.EVALUATION and (
-                route.attrib["id"] == "1" or route.attrib["id"] == "21"
+                route.attrib["id"] == "1"
+                or route.attrib["id"] == "21"
+                or route.attrib["id"] == "0"
             ):
                 continue
 
