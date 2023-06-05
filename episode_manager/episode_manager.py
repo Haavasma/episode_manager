@@ -220,8 +220,6 @@ class EpisodeManager:
         if not self.stopped:
             raise Exception("Episode has already started")
 
-        self.iterations += 1
-
         self.stopped = False
 
         routes = (
@@ -240,6 +238,12 @@ class EpisodeManager:
         # pick random id from route
         ids: List[str] = []
         for route in tree.iter("route"):
+            # Skip scenario 1 cause it just doesn't work lol
+            if self.config.training_type == TrainingType.EVALUATION and (
+                route.attrib["id"] == "1" or route.attrib["id"] == "21"
+            ):
+                continue
+
             if town is None or route.attrib["town"] == town:
                 ids.append(route.attrib["id"])
 
@@ -250,6 +254,8 @@ class EpisodeManager:
 
         if self.config.training_type == TrainingType.EVALUATION:
             rnd_index = self.iterations % len(ids)
+
+        self.iterations += 1
 
         id = ids[rnd_index]
 
@@ -289,7 +295,6 @@ class EpisodeManager:
             raise Exception("Scenario handler not initialized")
 
         done = False
-
         try:
             self.agent_handler.apply_control(ego_vehicle_action)
             done = self.scenario_handler.tick()
